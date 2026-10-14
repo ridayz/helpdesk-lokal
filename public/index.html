@@ -7,58 +7,88 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header class="top">
-  <div class="brand">☁️ Helpdesk Lokal</div>
-  <div class="status">
-    <span id="dot" class="dot off"></span>
-    <span id="statusText">menghubungkan…</span>
-    <span id="syncText" class="muted"></span>
-  </div>
-  <div class="actions">
-    <button id="btnNotif">🔔 Aktifkan notifikasi</button>
-    <button id="btnRefresh">↻ Refresh</button>
-  </div>
-</header>
-
 <div id="syncbar" class="syncbar hidden"><div></div></div>
+<aside class="side">
+  <div class="brand">☁️ Helpdesk <span>Lokal</span></div>
+  <nav>
+    <button class="nav active" data-page="dashboard">📊 Dashboard</button>
+    <button class="nav" data-page="tiket">🎫 Tiket <span id="navOpen" class="pill"></span></button>
+    <button class="nav" data-page="penanganan">🛠️ Penanganan</button>
+    <button class="nav" data-page="kpi">📈 KPI</button>
+  </nav>
+  <div class="sidefoot">
+    <span id="dot" class="dot off"></span>
+    <div><div id="statusText">menghubungkan…</div><div id="syncText" class="muted"></div></div>
+  </div>
+</aside>
 
 <main>
+  <header class="topbar">
+    <h1 id="pageTitle">Dashboard</h1>
+    <div class="actions">
+      <button id="btnNotif">🔔 Notifikasi</button>
+      <button id="btnRefresh">↻ Refresh</button>
+    </div>
+  </header>
   <section id="err" class="err hidden"></section>
 
-  <section class="cards">
-    <div class="card big"><div class="num" id="openCount">–</div><div class="lbl">Tiket terbuka</div></div>
-    <div class="card"><div class="num" id="totalCount">–</div><div class="lbl">Total tiket</div></div>
-    <div class="card prog"><div class="lbl">Progress selesai</div><div class="bar"><div id="solveBar"></div></div><div id="solvePct" class="pct">–</div></div>
-    <div class="card stages" id="stageCards"></div>
-  </section>
-
-  <section class="openbox">
-    <h2>🚨 Perlu perhatian <span id="openListCount" class="pill"></span></h2>
-    <div id="openList" class="list"></div>
-  </section>
-
-  <section class="kpi">
-    <h2>📊 KPI Penanganan <span id="kpiTeam" class="pill"></span></h2>
-    <div class="cards" id="kpiCards"></div>
-    <h3>Per teknisi (mulai → selesai)</h3>
-    <div id="kpiUsers" class="list"></div>
-    <h3>Per aktivitas</h3>
-    <div id="kpiActs" class="list"></div>
-    <h3>Penanganan terbaru</h3>
-    <div id="kpiRecent" class="list"></div>
-  </section>
-
-  <section class="toolbar">
-    <h2>🎫 Tiket terbaru</h2>
-    <div class="filters">
-      <select id="fStage"><option value="">Semua stage</option></select>
-      <select id="fTeam"><option value="">Semua team</option></select>
-      <select id="fChannel"><option value="">Semua channel</option></select>
-      <input id="fQ" type="search" placeholder="Cari no / judul / customer…">
-      <button id="btnCibitung" title="Tampilkan tiket team Cibitung">🛠️ Tim Cibitung</button>
+  <section class="page" id="page-dashboard">
+    <div class="cards">
+      <div class="card big"><div class="num" id="openCount">–</div><div class="lbl">Tiket terbuka</div></div>
+      <div class="card"><div class="num" id="totalCount">–</div><div class="lbl">Total tiket</div></div>
+      <div class="card prog"><div class="lbl">Progress selesai</div><div class="bar"><div id="solveBar"></div></div><div id="solvePct" class="pct">–</div></div>
+      <div class="card"><div class="num" id="l2Count">–</div><div class="lbl">Penanganan Cibitung</div></div>
+    </div>
+    <div class="panel"><h2>Per stage</h2><div class="stages" id="stageCards"></div></div>
+    <div class="panel">
+      <h2>🚨 Perlu perhatian <span id="openListCount" class="pill"></span></h2>
+      <div class="tblwrap"><table class="tbl"><thead><tr>
+        <th>No Tiket</th><th>Judul</th><th>Stage</th><th>Team</th><th>Teknisi</th><th>Waktu</th><th>Update</th>
+      </tr></thead><tbody id="openList"></tbody></table></div>
     </div>
   </section>
-  <div id="ticketList" class="list"></div>
+
+  <section class="page hidden" id="page-tiket">
+    <div class="panel">
+      <div class="filters">
+        <select id="fStage"><option value="">Semua stage</option></select>
+        <select id="fTeam"><option value="">Semua team</option></select>
+        <select id="fChannel"><option value="">Semua channel</option></select>
+        <input id="fQ" type="search" placeholder="🔍 Cari no / judul / customer…">
+        <button id="btnCibitung" title="Tampilkan tiket team Cibitung">🛠️ Tim Cibitung</button>
+      </div>
+      <div class="tblwrap"><table class="tbl"><thead><tr>
+        <th>No Tiket</th><th>Judul</th><th>Stage</th><th>Team</th><th>Teknisi</th><th>Customer</th><th>Waktu</th><th>Update</th>
+      </tr></thead><tbody id="ticketList"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="page hidden" id="page-penanganan">
+    <div class="panel">
+      <div class="filters">
+        <input id="fL2Q" type="search" placeholder="🔍 Cari no tiket penanganan…">
+      </div>
+      <div class="tblwrap"><table class="tbl"><thead><tr>
+        <th>Tiket</th><th>Teknisi</th><th>Aktivitas</th><th>Mulai</th><th>Selesai</th><th>Durasi</th><th>Alasan</th>
+      </tr></thead><tbody id="kpiRecent"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="page hidden" id="page-kpi">
+    <div class="panel"><h2>📊 KPI Penanganan <span id="kpiTeam" class="pill"></span></h2>
+      <div class="cards" id="kpiCards"></div>
+    </div>
+    <div class="panel"><h2>Per teknisi</h2>
+      <div class="tblwrap"><table class="tbl"><thead><tr>
+        <th>Nama</th><th>Penanganan</th><th>Rata-rata</th>
+      </tr></thead><tbody id="kpiUsers"></tbody></table></div>
+    </div>
+    <div class="panel"><h2>Per aktivitas</h2>
+      <div class="tblwrap"><table class="tbl"><thead><tr>
+        <th>Aktivitas</th><th>Jumlah</th><th>Rata-rata</th>
+      </tr></thead><tbody id="kpiActs"></tbody></table></div>
+    </div>
+  </section>
 </main>
 
 <div id="drawer" class="drawer hidden">

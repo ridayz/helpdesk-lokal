@@ -67,6 +67,33 @@ function stripHtml(html) {
   return String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').trim();
 }
 
+// Field `number` di Odoo ini computed & tidak searchable → cocokkan nomor secara lokal.
+let numCache = { at: 0, rows: [] };
+async function ticketIdsByNumber(q) {
+  if (Date.now() - numCache.at > 60000) {
+    numCache = { at: Date.now(), rows: await kw('helpdesk.ticket', 'search_read', [[], ['id', 'number']], { limit: 5000 }) };
+  }
+  const ql = q.toLowerCase();
+  return numCache.rows.filter((t) => (t.number || '').toLowerCase().includes(ql)).map((t) => t.id);
+}
+async function ticketQDomain(q) {
+  const ids = await ticketIdsByNumber(q);
+  return ['|', ['id', 'in', ids.length ? ids : [0]],
+    '|', '|', '|', ['name', 'ilike', q], ['number', 'ilike', q], ['customer_id', 'ilike', q], ['ca_name', 'ilike', q]];
+}
+
+// Cache 1500 log L2 terbaru (60 dtk) — buat search lokal yang tembus
+// tiket di luar hak baca akun ini.
+let l2Cache = { at: 0, rows: [] };
+async function recentL2() {
+  if (Date.now() - l2Cache.at > 60000) {
+    l2Cache = { at: Date.now(), rows: await kw('helpdesk.ticket.l2', 'search_read', [[],
+      ['id', 'ticket_id', 'team_id', 'user_id', 'start_time', 'end_time', 'activity_id', 'reason', 'create_date']],
+      { order: 'create_date desc', limit: 1500 }) };
+  }
+  return l2Cache.rows;
+}
+
 // --- cache ringan: ringkasan buat dashboard ---
 let cache = { at: 0, meta: null, latest: [], open: [] };
 async function refreshCache() {
@@ -124,7 +151,7 @@ const server = createServer(async (req, res) => {
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
       if (stage) domain.push(['stage_id', '=', parseInt(stage, 10)]);
       if (ch) domain.push(['channel_id', '=', parseInt(ch, 10)]);
-      if (q) domain.push('|', '|', '|', ['name', 'ilike', q], ['number', 'ilike', q], ['customer_id', 'ilike', q], ['ca_name', 'ilike', q]);
+      if (q) domain.push(...(await ticketQDomain(q)));
       const tickets = await kw('helpdesk.ticket', 'search_read', [domain, TICKET_LIST_FIELDS], { order: 'write_date desc', limit: 30 });
       return send(res, 200, JSON.stringify({ tickets, live: true }));
     }
@@ -145,11 +172,32 @@ const server = createServer(async (req, res) => {
       // Log penanganan L2: start_time (diambil) vs end_time (selesai) per team.
       const team = u.searchParams.get('team');
       const q = (u.searchParams.get('q') || '').trim();
+      const LF = ['id', 'ticket_id', 'team_id', 'user_id', 'start_time', 'end_time', 'activity_id', 'reason', 'create_date'];
+      if (q) {
+        // 1) cocokkan lokal di cache 1500 log terbaru (by display tiket/user/alasan) —
+        //    ini tembus tiket yang akun ini tidak boleh baca langsung.
+        const recent = await recentL2();
+        const ql = q.toLowerCase();
+        const byLocal = recent.filter((r) =>
+          (!team || r.team_id?.[0] === parseInt(team, 10)) &&
+          `${r.ticket_id?.[1] || ''} ${r.user_id?.[1] || ''} ${r.reason || ''} ${r.activity_id?.[1] || ''}`.toLowerCase().includes(ql));
+        // 2) plus tiket yang kebaca akun ini
+        const qd = await ticketQDomain(q);
+        const tids = await kw('helpdesk.ticket', 'search', [qd], {});
+        let byTicket = [];
+        if (tids.length) {
+          const d2 = team
+            ? [['team_id', '=', parseInt(team, 10)], ['ticket_id', 'in', tids]]
+            : [['ticket_id', 'in', tids]];
+          byTicket = await kw('helpdesk.ticket.l2', 'search_read', [d2, LF], { order: 'create_date desc', limit: 30 });
+        }
+        const seenIds = new Set();
+        const logs = [...byLocal, ...byTicket].filter((r) => !seenIds.has(r.id) && seenIds.add(r.id)).slice(0, 30);
+        return send(res, 200, JSON.stringify({ logs, live: true }));
+      }
       const domain = [];
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
-      if (q) domain.push(['ticket_id', 'ilike', q]);
-      const logs = await kw('helpdesk.ticket.l2', 'search_read', [domain,
-        ['id', 'ticket_id', 'team_id', 'user_id', 'start_time', 'end_time', 'activity_id', 'reason', 'create_date']],
+      const logs = await kw('helpdesk.ticket.l2', 'search_read', [domain, LF],
         { order: 'create_date desc', limit: 30 });
       return send(res, 200, JSON.stringify({ logs, live: true }));
     }

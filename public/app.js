@@ -1,4 +1,4 @@
-// Dashboard lokal: polling /api/*, diff buat notifikasi desktop + bunyi.
+// Dashboard lokal CMS: polling /api/*, diff buat notifikasi desktop + bunyi.
 const $ = (id) => document.getElementById(id);
 const seenKey = 'hdl_seen_v1';
 const seen = JSON.parse(localStorage.getItem(seenKey) || '{}');
@@ -6,20 +6,19 @@ const saveSeen = () => localStorage.setItem(seenKey, JSON.stringify(seen));
 let meta = null;
 let pollTimer = null;
 
+const TITLES = { dashboard: 'Dashboard', tiket: 'Tiket', penanganan: 'Penanganan L2', kpi: 'KPI' };
+document.querySelectorAll('.nav').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('.nav').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.page').forEach((p) => p.classList.add('hidden'));
+    $('page-' + b.dataset.page).classList.remove('hidden');
+    $('pageTitle').textContent = TITLES[b.dataset.page];
+  };
+});
+
 function badgeClass(stage) {
   return 'badge ' + String(stage || '').replace(/\s/g, '');
-}
-function rowHtml(t) {
-  const stage = t.stage_id?.[1] || '-';
-  const team = t.team_id?.[1] || '-';
-  const s = startOf(t), e = endOf(t);
-  const waktu = e ? `⏱ ${fmtDur(diffMenit(t.create_date, e))}` : (s ? '🔧 dikerjakan' : '🆕 nunggu diambil');
-  return `<div class="t">${esc(t.number || '')} — ${esc(t.name || '')}</div>
-    <div class="m"><span class="${badgeClass(stage)}">${esc(stage)}</span>
-    <span>👥 ${esc(team)}</span><span>👤 ${esc(t.user_id?.[1] || 'belum assigned')}</span>
-    <span>🏢 ${esc(t.ca_name || t.partner_id?.[1] || '')}</span>
-    <span>${waktu}</span>
-    <span>🕒 ${esc(t.write_date || '')}</span></div>`;
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function diffMenit(a, b) {
@@ -35,6 +34,30 @@ function fmtDur(m) {
 }
 const startOf = (t) => t.in_progress_date || t.assigned_date || null;
 const endOf = (t) => t.solved_date || t.closed_date || null;
+function waktuChip(t) {
+  const s = startOf(t), e = endOf(t);
+  if (e) return `⏱ ${fmtDur(diffMenit(t.create_date, e))}`;
+  if (s) return '🔧 dikerjakan';
+  return '🆕 nunggu diambil';
+}
+// baris tabel tiket (withCust: tampilkan kolom customer di halaman Tiket)
+function trHtml(t, withCust) {
+  const stage = t.stage_id?.[1] || '-';
+  return `<tr data-id="${t.id}">
+    <td class="t">${esc(t.number || '')}</td>
+    <td>${esc(t.name || '')}</td>
+    <td><span class="${badgeClass(stage)}">${esc(stage)}</span></td>
+    <td>${esc(t.team_id?.[1] || '-')}</td>
+    <td>${esc(t.user_id?.[1] || '-')}</td>
+    ${withCust ? `<td>${esc(t.ca_name || t.partner_id?.[1] || '-')}</td>` : ''}
+    <td>${waktuChip(t)}</td>
+    <td>${esc(t.write_date || '')}</td></tr>`;
+}
+function bindRows(tbody) {
+  tbody.querySelectorAll('tr[data-id]').forEach((tr) => {
+    tr.onclick = () => openDetail(parseInt(tr.dataset.id, 10));
+  });
+}
 
 async function api(path, tries = 3) {
   let lastErr = null;
@@ -55,6 +78,7 @@ async function api(path, tries = 3) {
 async function loadMeta() {
   meta = await api('/api/meta');
   $('openCount').textContent = meta.openCount ?? '–';
+  $('navOpen').textContent = meta.openCount ?? '';
   $('totalCount').textContent = meta.total ?? '–';
   $('stageCards').innerHTML = (meta.byStage || []).map((g) =>
     `<span class="stage"><b>${g.__count}</b> ${esc(g.stage_id?.[1] || '?')}</span>`).join('');
@@ -76,29 +100,28 @@ async function loadTickets() {
   const hasFilter = $('fStage').value || $('fTeam').value || $('fChannel').value || $('fQ').value.trim();
   const box = $('ticketList');
   if (hasFilter) {
-    // cari live ke Odoo biar tembus semua tiket, bukan cuma cache
-    box.innerHTML = '<div class="skel">mencari…</div>';
+    box.innerHTML = '<tr><td colspan="8"><div class="skel">mencari…</div></td></tr>';
     const q = new URLSearchParams({ stage: $('fStage').value, team: $('fTeam').value, channel: $('fChannel').value, q: $('fQ').value.trim() });
     const j = await api('/api/search?' + q);
-    box.innerHTML = j.tickets.length ? '' : '<div class="muted">Tidak ada tiket cocok di seluruh database.</div>';
-    for (const t of j.tickets) {
-      const d = document.createElement('div');
-      d.className = 'row'; d.innerHTML = rowHtml(t);
-      d.onclick = () => openDetail(t.id);
-      box.appendChild(d);
-    }
+    box.innerHTML = j.tickets.length ? '' : '<tr><td colspan="8" class="muted">Tidak ada tiket cocok di seluruh database.</td></tr>';
+    box.innerHTML = j.tickets.map((t) => trHtml(t, true)).join('') || box.innerHTML;
+    bindRows(box);
     return;
   }
-  const q = new URLSearchParams({ scope: 'latest' });
-  const j = await api('/api/tickets?' + q);
-  box.innerHTML = j.tickets.length ? '' : '<div class="muted">Tidak ada tiket cocok.</div>';
-  for (const t of j.tickets) {
-    const d = document.createElement('div');
-    d.className = 'row'; d.innerHTML = rowHtml(t);
-    d.onclick = () => openDetail(t.id);
-    box.appendChild(d);
-  }
+  const j = await api('/api/tickets?scope=latest');
+  box.innerHTML = j.tickets.length ? '' : '<tr><td colspan="8" class="muted">Tidak ada tiket.</td></tr>';
+  box.innerHTML = j.tickets.map((t) => trHtml(t, true)).join('') || box.innerHTML;
+  bindRows(box);
   checkNotif(j.tickets);
+}
+
+async function loadOpen() {
+  const j = await api('/api/tickets?scope=open');
+  $('openListCount').textContent = j.tickets.length + ' tiket';
+  const box = $('openList');
+  box.innerHTML = j.tickets.length ? '' : '<tr><td colspan="7" class="muted">🎉 Tidak ada tiket terbuka. Aman.</td></tr>';
+  box.innerHTML = j.tickets.map((t) => trHtml(t, false)).join('') || box.innerHTML;
+  bindRows(box);
 }
 
 async function loadKpi() {
@@ -108,52 +131,39 @@ async function loadKpi() {
     : 'L2 Field Ops Access - Cibitung';
   $('kpiTeam').textContent = teamName;
   try {
-    const [k, recent] = await Promise.all([
-      api('/api/kpi-l2?team=' + teamId),
-      api('/api/l2?team=' + teamId),
-    ]);
+    const k = await api('/api/kpi-l2?team=' + teamId);
+    $('l2Count').textContent = k.total ?? '–';
     $('kpiCards').innerHTML = `
       <div class="card"><div class="num" style="font-size:30px">${fmtDur(k.avgMenit)}</div><div class="lbl">Rata-rata penanganan (ambil→selesai)</div></div>
       <div class="card"><div class="num">${k.selesai}/${k.total}</div><div class="lbl">Penanganan selesai</div></div>
       <div class="card"><div class="num">${k.jalan}</div><div class="lbl">Masih jalan (belum end)</div></div>`;
-    $('kpiUsers').innerHTML = k.users.length ? '' : '<div class="muted">Belum ada data.</div>';
-    for (const usr of k.users) {
-      const d = document.createElement('div');
-      d.className = 'row';
-      d.innerHTML = `<div class="t">${esc(usr.name)}</div>
-        <div class="m"><span>🛠️ ${usr.total} penanganan</span><span>⏱ rata-rata ${fmtDur(usr.avgMenit)}</span></div>`;
-      $('kpiUsers').appendChild(d);
-    }
+    $('kpiUsers').innerHTML = (k.users || []).map((u) =>
+      `<tr><td class="t">${esc(u.name)}</td><td>🛠️ ${u.total}</td><td>⏱ ${fmtDur(u.avgMenit)}</td></tr>`).join('')
+      || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
     $('kpiActs').innerHTML = (k.acts || []).map((a) =>
-      `<div class="row"><div class="t" style="font-size:16px">${esc(a.name)}</div>
-      <div class="m"><span>🛠️ ${a.total}x</span><span>⏱ rata-rata ${fmtDur(a.avgMenit)}</span></div></div>`).join('')
-      || '<div class="muted">Belum ada data.</div>';
-    $('kpiRecent').innerHTML = (recent.logs || []).length ? '' : '<div class="muted">Belum ada data.</div>';
-    for (const lg of (recent.logs || [])) {
-      const d = document.createElement('div');
-      d.className = 'row';
-      const dur = diffMenit(lg.start_time, lg.end_time);
-      d.innerHTML = `<div class="t" style="font-size:16px">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</div>
-        <div class="m"><span>👤 ${esc(lg.user_id?.[1] || '-')}</span><span>🧰 ${esc(lg.activity_id?.[1] || '-')}</span>
-        <span>▶ ${esc(lg.start_time || '-')}</span><span>⏹ ${esc(lg.end_time || 'jalan…')}</span>
-        <span>⏱ ${dur === null ? '…' : fmtDur(dur)}</span></div>
-        ${lg.reason ? `<div class="m">📝 ${esc(lg.reason)}</div>` : ''}`;
-      $('kpiRecent').appendChild(d);
-    }
+      `<tr><td class="t">${esc(a.name)}</td><td>🛠️ ${a.total}x</td><td>⏱ ${fmtDur(a.avgMenit)}</td></tr>`).join('')
+      || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
+    loadL2Recent();
   } catch (e) {
     $('kpiCards').innerHTML = '<div class="muted">KPI gagal dimuat: ' + esc(e.message) + '</div>';
   }
 }
-async function loadOpen() {
-  const j = await api('/api/tickets?scope=open');
-  $('openListCount').textContent = j.tickets.length + ' tiket';
-  const box = $('openList');
-  box.innerHTML = j.tickets.length ? '' : '<div class="muted">🎉 Tidak ada tiket terbuka. Aman.</div>';
-  for (const t of j.tickets) {
-    const d = document.createElement('div');
-    d.className = 'row'; d.innerHTML = rowHtml(t);
-    d.onclick = () => openDetail(t.id);
-    box.appendChild(d);
+
+async function loadL2Recent() {
+  const teamId = $('fTeam').value || '17';
+  const q = ($('fL2Q')?.value || '').trim();
+  const box = $('kpiRecent');
+  try {
+    const recent = await api('/api/l2?team=' + teamId + '&q=' + encodeURIComponent(q));
+    box.innerHTML = ((recent.logs || []).map((lg) => {
+      const dur = diffMenit(lg.start_time, lg.end_time);
+      return `<tr><td class="t">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</td>
+        <td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>
+        <td>${esc(lg.start_time || '-')}</td><td>${esc(lg.end_time || 'jalan…')}</td>
+        <td>${dur === null ? '…' : fmtDur(dur)}</td><td>${esc(lg.reason || '-')}</td></tr>`;
+    }).join('')) || '<tr><td colspan="7" class="muted">Tidak ketemu.</td></tr>';
+  } catch (e) {
+    box.innerHTML = '<tr><td colspan="7" class="muted">Gagal: ' + esc(e.message) + '</td></tr>';
   }
 }
 
@@ -188,7 +198,6 @@ function checkNotif(tickets) {
     seen[t.id] = cur;
   }
   if (changed) saveSeen();
-  // buang cache lama biar localStorage ga bengkak
   const ids = new Set(tickets.map((t) => String(t.id)));
   for (const k of Object.keys(seen)) if (!ids.has(k) && Math.random() < 0.05) delete seen[k];
 }
@@ -217,6 +226,7 @@ async function openDetail(id) {
       <dt>Total</dt><dd>${fmtDur(diffMenit(t.create_date, endOf(t)))} (dibuat → close)</dd>
       <dt>Lokasi</dt><dd>${esc(t.pop_location_id?.[1] || '-')}</dd>
     </dl>
+    <h3>Detail</h3>
     <p><b>${esc(t.name || '')}</b></p>
     <dl class="kv">
       <dt>Customer</dt><dd>${esc(t.ca_name || t.partner_id?.[1] || '-')} (${esc(t.customer_id || '-')})</dd>
@@ -243,7 +253,6 @@ async function refreshAll(manual) {
     if (manual) await api('/api/refresh');
     await loadMeta();
     await Promise.all([loadOpen(), loadTickets(), loadKpi()]);
-    // notifikasi jalan terus walau filter tim aktif: cek dari cache terbaru
     if ($('fTeam').value || $('fStage').value || $('fChannel').value || $('fQ').value.trim()) {
       try { checkNotif((await api('/api/tickets?scope=latest')).tickets); } catch { /* abaikan */ }
     }
@@ -268,7 +277,7 @@ $('drawerClose').onclick = () => $('drawer').classList.add('hidden');
 $('drawer').onclick = (e) => { if (e.target.id === 'drawer') $('drawer').classList.add('hidden'); };
 $('btnNotif').onclick = async () => {
   const r = await Notification.requestPermission();
-  $('btnNotif').textContent = r === 'granted' ? '🔔 Notifikasi aktif' : '🔕 Izin ditolak';
+  $('btnNotif').textContent = r === 'granted' ? '🔔 Aktif' : '🔕 Ditolak';
   if (r === 'granted') beep();
 };
 for (const id of ['fStage', 'fTeam', 'fChannel']) $(id).onchange = () => {
@@ -282,17 +291,18 @@ $('btnCibitung').onclick = () => {
   localStorage.setItem('hdl_team', '17');
   loadTickets();
   loadKpi();
-  document.querySelector('.toolbar').scrollIntoView({ behavior: 'smooth' });
+  document.querySelector('#page-tiket .tblwrap').scrollIntoView({ behavior: 'smooth' });
 };
 let qT = null;
 $('fQ').oninput = () => { clearTimeout(qT); qT = setTimeout(loadTickets, 300); };
+let l2T = null;
+$('fL2Q').oninput = () => { clearTimeout(l2T); l2T = setTimeout(loadL2Recent, 300); };
 
 (async () => {
-  if (Notification.permission === 'granted') $('btnNotif').textContent = '🔔 Notifikasi aktif';
-  $('openList').innerHTML = '<div class="skel">memuat…</div><div class="skel">memuat…</div>';
-  $('ticketList').innerHTML = '<div class="skel">memuat…</div><div class="skel">memuat…</div><div class="skel">memuat…</div>';
-  // ingat team terakhir; default tim Cibitung (17) buat Ridwan
+  if (Notification.permission === 'granted') $('btnNotif').textContent = '🔔 Aktif';
   const savedTeam = localStorage.getItem('hdl_team') || '17';
+  $('openList').innerHTML = '<tr><td colspan="7"><div class="skel">memuat…</div></td></tr>';
+  $('ticketList').innerHTML = '<tr><td colspan="8"><div class="skel">memuat…</div></td></tr>';
   await refreshAll(false);
   if (!$('fTeam').value && [...$('fTeam').options].some((o) => o.value === savedTeam)) {
     $('fTeam').value = savedTeam;
