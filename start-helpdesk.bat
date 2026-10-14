@@ -1,5 +1,5 @@
 @echo off
-REM Helpdesk Lokal — klik 2x: nyalain server (kalo belum jalan) + buka dashboard di browser.
+REM INDONET HELPDESK TIKET — klik 2x: nyalain server (kalo belum jalan) + buka dashboard di browser.
 set APPDIR=C:\Users\ridwan\Documents\Default Project\helpdesk-lokal
 set PORT=8951
 netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul
