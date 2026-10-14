@@ -13,8 +13,8 @@ $g.SmoothingMode = 'AntiAlias'
 $g.InterpolationMode = 'HighQualityBicubic'
 $rect = New-Object -TypeName System.Drawing.Rectangle -ArgumentList 0, 0, $size, $size
 $br = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect,
-  [System.Drawing.ColorTranslator]::FromHtml('#e0f2fe'),
-  [System.Drawing.ColorTranslator]::FromHtml('#bae6fd'), 45)
+  [System.Drawing.ColorTranslator]::FromHtml('#1a1a1a'),
+  [System.Drawing.ColorTranslator]::FromHtml('#000000'), 45)
 $path = New-Object System.Drawing.Drawing2D.GraphicsPath
 $path.AddArc(8, 8, 120, 120, 180, 90)
 $path.AddArc(128, 8, 120, 120, 270, 90)
@@ -22,6 +22,8 @@ $path.AddArc(128, 128, 120, 120, 0, 90)
 $path.AddArc(8, 128, 120, 120, 90, 90)
 $path.CloseFigure()
 $g.FillPath($br, $path)
+$edge = New-Object System.Drawing.Pen([System.Drawing.ColorTranslator]::FromHtml('#ff7a00'), 6)
+$g.DrawPath($edge, $path)
 $pad = 36
 $scale = [Math]::Min(($size - $pad * 2) / $logo.Width, ($size - $pad * 2) / $logo.Height)
 $dw = [int]($logo.Width * $scale)
