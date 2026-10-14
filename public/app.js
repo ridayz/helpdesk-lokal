@@ -20,11 +20,20 @@ function rowHtml(t) {
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
-async function api(path) {
-  const r = await fetch(path);
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-  return j;
+async function api(path, tries = 3) {
+  let lastErr = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(path);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      return j;
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  throw lastErr;
 }
 
 async function loadMeta() {
@@ -33,6 +42,10 @@ async function loadMeta() {
   $('totalCount').textContent = meta.total ?? '–';
   $('stageCards').innerHTML = (meta.byStage || []).map((g) =>
     `<span class="stage"><b>${g.__count}</b> ${esc(g.stage_id?.[1] || '?')}</span>`).join('');
+  const closed = (meta.byStage || []).find((g) => g.stage_id?.[1] === 'Closed')?.__count || 0;
+  const pct = meta.total ? Math.round((closed / meta.total) * 100) : 0;
+  $('solveBar').style.width = pct + '%';
+  $('solvePct').textContent = pct + '% selesai (' + closed + '/' + (meta.total ?? '?') + ')';
   const fill = (el, items, label) => {
     const cur = $(el).value;
     $(el).innerHTML = `<option value="">${label}</option>` + items.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
@@ -109,9 +122,18 @@ function checkNotif(tickets) {
 async function openDetail(id) {
   const j = await api('/api/tickets/' + id);
   const t = j.ticket;
+  const FLOW = ['New', 'Open', 'In Progress', 'Solved', 'Closed'];
+  const cur = t.stage_id?.[1] || '';
+  const curIdx = FLOW.indexOf(cur);
+  const steps = FLOW.map((s, i) => {
+    const cls = cur === 'Hold' ? (i < 2 ? 'done' : '') : (i < curIdx ? 'done' : (i === curIdx ? 'now' : ''));
+    return `${i ? '<span class="link"></span>' : ''}<span class="step ${cls}"><span class="dotn">${i < curIdx || (cur === 'Hold' && i < 2) ? '✓' : (i + 1)}</span>${esc(s)}</span>`;
+  }).join('');
   $('detail').innerHTML = `
     <h2>${esc(t.number || '')}</h2>
-    <div class="${badgeClass(t.stage_id?.[1])}">${esc(t.stage_id?.[1] || '')}</div>
+    <div class="${badgeClass(cur)}">${esc(cur)}</div>
+    <div class="stepper">${steps}</div>
+    ${cur === 'Hold' ? '<div class="muted">⏸️ Tiket ini sedang di-Hold.</div>' : ''}
     <p><b>${esc(t.name || '')}</b></p>
     <dl class="kv">
       <dt>Customer</dt><dd>${esc(t.ca_name || t.partner_id?.[1] || '-')} (${esc(t.customer_id || '-')})</dd>
@@ -133,6 +155,7 @@ async function openDetail(id) {
 }
 
 async function refreshAll(manual) {
+  $('syncbar').classList.remove('hidden');
   try {
     if (manual) await api('/api/refresh');
     await loadMeta();
@@ -144,10 +167,12 @@ async function refreshAll(manual) {
     $('err').classList.add('hidden');
   } catch (e) {
     $('dot').className = 'dot off';
-    $('statusText').textContent = 'putus';
+    $('statusText').textContent = 'putus — coba lagi otomatis…';
     const box = $('err');
-    box.textContent = '⚠️ ' + e.message;
+    box.textContent = '⚠️ ' + e.message + ' (data lama tetap ditampilkan)';
     box.classList.remove('hidden');
+  } finally {
+    $('syncbar').classList.add('hidden');
   }
 }
 
@@ -165,6 +190,8 @@ $('fQ').oninput = () => { clearTimeout(qT); qT = setTimeout(loadTickets, 300); }
 
 (async () => {
   if (Notification.permission === 'granted') $('btnNotif').textContent = '🔔 Notifikasi aktif';
+  $('openList').innerHTML = '<div class="skel">memuat…</div><div class="skel">memuat…</div>';
+  $('ticketList').innerHTML = '<div class="skel">memuat…</div><div class="skel">memuat…</div><div class="skel">memuat…</div>';
   await refreshAll(false);
   pollTimer = setInterval(() => refreshAll(false), 60000);
 })();

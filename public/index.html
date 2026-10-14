@@ -20,12 +20,15 @@
   </div>
 </header>
 
+<div id="syncbar" class="syncbar hidden"><div></div></div>
+
 <main>
   <section id="err" class="err hidden"></section>
 
   <section class="cards">
     <div class="card big"><div class="num" id="openCount">–</div><div class="lbl">Tiket terbuka</div></div>
     <div class="card"><div class="num" id="totalCount">–</div><div class="lbl">Total tiket</div></div>
+    <div class="card prog"><div class="lbl">Progress selesai</div><div class="bar"><div id="solveBar"></div></div><div id="solvePct" class="pct">–</div></div>
     <div class="card stages" id="stageCards"></div>
   </section>
 
