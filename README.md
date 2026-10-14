@@ -14,6 +14,10 @@ Komputermu yang polling Odoo + kasih **notifikasi desktop + bunyi** tiap ada tik
 
 ## Jalanin
 
+**Cara gampang (Windows):** klik 2x ikon **Helpdesk Lokal** di Desktop → server nyala sendiri (minimized) + dashboard kebuka di browser. Shortcut-nya jalanin `start-helpdesk.bat` di repo ini.
+
+**Cara manual:**
+
 1. Copy `.env.example` jadi `.env`, isi `ODOO_LOGIN` + `ODOO_APIKEY` (API key dari profil Odoo → Preferences → API Keys).
 2. `node server.mjs` (butuh Node 18+, tanpa `npm install`)
 3. Buka `http://127.0.0.1:8951`, klik **🔔 Aktifkan notifikasi**, biarkan tab terbuka.
