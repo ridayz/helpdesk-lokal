@@ -231,10 +231,25 @@ function beep() {
   } catch { /* audio opsional */ }
 }
 
-function notify(title, body) {
-  if (Notification.permission !== 'granted') return;
-  try { new Notification(title, { body }); } catch { /* abaikan */ }
+function notify(title, body, ticketId) {
+  if (localStorage.getItem('hdl_notif') === 'off') return;
   beep();
+  // toast dalam aplikasi — selalu jalan, sekali klik, tanpa izin browser
+  const box = $('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<b>${esc(title)}</b><br><span>${esc(body)}</span>`;
+  if (ticketId) el.onclick = () => { openDetail(ticketId); el.remove(); };
+  box.appendChild(el);
+  while (box.children.length > 4) box.firstChild.remove();
+  setTimeout(() => el.remove(), 9000);
+  // bonus: notifikasi bawaan browser kalau diizinkan
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(title, { body }); } catch { /* abaikan */ }
+  }
+}
+function paintNotifBtn() {
+  $('btnNotif').textContent = localStorage.getItem('hdl_notif') === 'off' ? '🔕 Mati' : '🔔 Aktif';
 }
 
 function checkNotif(tickets) {
@@ -243,10 +258,10 @@ function checkNotif(tickets) {
     const prev = seen[t.id];
     const cur = (t.write_date || '') + '|' + (t.stage_id?.[1] || '');
     if (!prev) {
-      notify('🎫 Tiket baru: ' + (t.number || ''), (t.name || '') + ' — ' + (t.stage_id?.[1] || ''));
+      notify('🎫 Tiket baru: ' + (t.number || ''), (t.name || '') + ' — ' + (t.stage_id?.[1] || ''), t.id);
       changed = true;
     } else if (prev !== cur) {
-      notify('🔄 Update: ' + (t.number || ''), (t.name || '') + ' → ' + (t.stage_id?.[1] || ''));
+      notify('🔄 Update: ' + (t.number || ''), (t.name || '') + ' → ' + (t.stage_id?.[1] || ''), t.id);
       changed = true;
     }
     seen[t.id] = cur;
@@ -332,27 +347,18 @@ $('btnRefresh').onclick = () => refreshAll(true);
 $('drawerClose').onclick = () => $('drawer').classList.add('hidden');
 $('drawer').onclick = (e) => { if (e.target.id === 'drawer') $('drawer').classList.add('hidden'); };
 $('btnNotif').onclick = async () => {
-  if (!('Notification' in window)) {
-    showHelp('Browser ini tidak mendukung notifikasi desktop.');
-    return;
+  // toggle sekali klik — tanpa popup izin, tanpa petunjuk
+  const off = localStorage.getItem('hdl_notif') === 'off';
+  localStorage.setItem('hdl_notif', off ? 'on' : 'off');
+  paintNotifBtn();
+  if (off) {
+    notify('🔔 Notifikasi aktif', 'Tiket baru / update bakal muncul di sini + bunyi');
+    // coba sekalian aktifin bawaan browser kalau belum pernah ditanya
+    if ('Notification' in window && Notification.permission === 'default') {
+      try { await Notification.requestPermission(); } catch { /* abaikan */ }
+    }
   }
-  if (Notification.permission === 'denied') {
-    showHelp('🔕 <b>Notifikasi diblokir browser</b> — tombolnya memang ga bisa diklik lagi.<br>' +
-      'Aktifin manual:<br>1. Klik ikon <b>🔒 di kiri alamat</b> → <b>Site settings / Pengaturan situs</b>' +
-      '<br>2. <b>Notifications</b> → pilih <b>Allow / Izinkan</b>' +
-      '<br>3. <b>Refresh halaman</b> (tombol ↻), tombol 🔔 jadi aktif lagi.');
-    return;
-  }
-  const r = await Notification.requestPermission();
-  $('btnNotif').textContent = r === 'granted' ? '🔔 Aktif' : '🔕 Ditolak — klik info';
-  if (r === 'granted') { $('err').classList.add('hidden'); beep(); }
 };
-function showHelp(html) {
-  const box = $('err');
-  box.innerHTML = html;
-  box.classList.remove('hidden');
-  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
 for (const id of ['fStage', 'fTeam', 'fChannel']) $(id).onchange = () => {
   localStorage.setItem('hdl_team', $('fTeam').value);
   loadTickets();
@@ -372,8 +378,7 @@ let l2T = null;
 $('fL2Q').oninput = () => { clearTimeout(l2T); l2T = setTimeout(loadL2Recent, 300); };
 
 (async () => {
-  if (Notification.permission === 'granted') $('btnNotif').textContent = '🔔 Aktif';
-  else if (Notification.permission === 'denied') $('btnNotif').textContent = '🔕 Diblokir — klik info';
+  paintNotifBtn();
   const savedTeam = localStorage.getItem('hdl_team') || '17';
   $('openList').innerHTML = '<tr><td colspan="7"><div class="skel">memuat…</div></td></tr>';
   $('ticketList').innerHTML = '<tr><td colspan="8"><div class="skel">memuat…</div></td></tr>';
