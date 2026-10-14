@@ -332,10 +332,27 @@ $('btnRefresh').onclick = () => refreshAll(true);
 $('drawerClose').onclick = () => $('drawer').classList.add('hidden');
 $('drawer').onclick = (e) => { if (e.target.id === 'drawer') $('drawer').classList.add('hidden'); };
 $('btnNotif').onclick = async () => {
+  if (!('Notification' in window)) {
+    showHelp('Browser ini tidak mendukung notifikasi desktop.');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showHelp('🔕 <b>Notifikasi diblokir browser</b> — tombolnya memang ga bisa diklik lagi.<br>' +
+      'Aktifin manual:<br>1. Klik ikon <b>🔒 di kiri alamat</b> → <b>Site settings / Pengaturan situs</b>' +
+      '<br>2. <b>Notifications</b> → pilih <b>Allow / Izinkan</b>' +
+      '<br>3. <b>Refresh halaman</b> (tombol ↻), tombol 🔔 jadi aktif lagi.');
+    return;
+  }
   const r = await Notification.requestPermission();
-  $('btnNotif').textContent = r === 'granted' ? '🔔 Aktif' : '🔕 Ditolak';
-  if (r === 'granted') beep();
+  $('btnNotif').textContent = r === 'granted' ? '🔔 Aktif' : '🔕 Ditolak — klik info';
+  if (r === 'granted') { $('err').classList.add('hidden'); beep(); }
 };
+function showHelp(html) {
+  const box = $('err');
+  box.innerHTML = html;
+  box.classList.remove('hidden');
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 for (const id of ['fStage', 'fTeam', 'fChannel']) $(id).onchange = () => {
   localStorage.setItem('hdl_team', $('fTeam').value);
   loadTickets();
@@ -356,6 +373,7 @@ $('fL2Q').oninput = () => { clearTimeout(l2T); l2T = setTimeout(loadL2Recent, 30
 
 (async () => {
   if (Notification.permission === 'granted') $('btnNotif').textContent = '🔔 Aktif';
+  else if (Notification.permission === 'denied') $('btnNotif').textContent = '🔕 Diblokir — klik info';
   const savedTeam = localStorage.getItem('hdl_team') || '17';
   $('openList').innerHTML = '<tr><td colspan="7"><div class="skel">memuat…</div></td></tr>';
   $('ticketList').innerHTML = '<tr><td colspan="8"><div class="skel">memuat…</div></td></tr>';
