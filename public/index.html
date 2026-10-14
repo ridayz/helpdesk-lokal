@@ -37,6 +37,17 @@
     <div id="openList" class="list"></div>
   </section>
 
+  <section class="kpi">
+    <h2>📊 KPI Penanganan <span id="kpiTeam" class="pill"></span></h2>
+    <div class="cards" id="kpiCards"></div>
+    <h3>Per teknisi (mulai → selesai)</h3>
+    <div id="kpiUsers" class="list"></div>
+    <h3>Per aktivitas</h3>
+    <div id="kpiActs" class="list"></div>
+    <h3>Penanganan terbaru</h3>
+    <div id="kpiRecent" class="list"></div>
+  </section>
+
   <section class="toolbar">
     <h2>🎫 Tiket terbaru</h2>
     <div class="filters">
@@ -44,6 +55,7 @@
       <select id="fTeam"><option value="">Semua team</option></select>
       <select id="fChannel"><option value="">Semua channel</option></select>
       <input id="fQ" type="search" placeholder="Cari no / judul / customer…">
+      <button id="btnCibitung" title="Tampilkan tiket team Cibitung">🛠️ Tim Cibitung</button>
     </div>
   </section>
   <div id="ticketList" class="list"></div>

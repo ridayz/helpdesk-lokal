@@ -54,7 +54,9 @@ async function kw(model, method, args = [], kwargs = {}) {
 
 const TICKET_LIST_FIELDS = ['id', 'number', 'name', 'priority', 'severity', 'stage_id', 'team_id',
   'user_id', 'partner_id', 'customer_id', 'ca_name', 'create_date', 'write_date', 'last_stage_update',
-  'channel_id', 'ticket_type_id', 'is_gamas', 'age_ticket'];
+  'channel_id', 'ticket_type_id', 'is_gamas', 'age_ticket',
+  'assigned_date', 'in_progress_date', 'solved_date', 'closed_date',
+  'ticket_duration', 'solved_duration', 'progress_duration', 'pop_location_id'];
 const TICKET_DETAIL_FIELDS = [...TICKET_LIST_FIELDS, 'description', 'phone_customer', 'pic_customer',
   'contact_info', 'ca_id', 'assigned_date', 'in_progress_date', 'solved_date', 'solved_by', 'solved_team',
   'closed_date', 'sla_type_id', 'is_sla_impact', 'downtime_start', 'downtime_end', 'downtime_duration_hours',
@@ -113,8 +115,20 @@ const server = createServer(async (req, res) => {
       if (q) list = list.filter((t) => `${t.number} ${t.name} ${t.customer_id || ''} ${t.ca_name || ''}`.toLowerCase().includes(q));
       return send(res, 200, JSON.stringify({ tickets: list, cachedAt: c.at }));
     }
-    const mId = p.match(/^\/api\/tickets\/(\d+)$/);
-    if (mId) {
+    if (p === '/api/search') {
+      const q = (u.searchParams.get('q') || '').trim();
+      const team = u.searchParams.get('team');
+      const stage = u.searchParams.get('stage');
+      const ch = u.searchParams.get('channel');
+      const domain = [];
+      if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
+      if (stage) domain.push(['stage_id', '=', parseInt(stage, 10)]);
+      if (ch) domain.push(['channel_id', '=', parseInt(ch, 10)]);
+      if (q) domain.push('|', '|', '|', ['name', 'ilike', q], ['number', 'ilike', q], ['customer_id', 'ilike', q], ['ca_name', 'ilike', q]);
+      const tickets = await kw('helpdesk.ticket', 'search_read', [domain, TICKET_LIST_FIELDS], { order: 'write_date desc', limit: 30 });
+      return send(res, 200, JSON.stringify({ tickets, live: true }));
+    }
+    const mId = p.match(/^\/api\/tickets\/(\d+)$/);    if (mId) {
       const det = await kw('helpdesk.ticket', 'search_read', [[['id', '=', parseInt(mId[1], 10)]], TICKET_DETAIL_FIELDS], {});
       if (!det?.length) return send(res, 404, JSON.stringify({ error: 'tiket tidak ditemukan' }));
       const t = det[0];
@@ -127,6 +141,51 @@ const server = createServer(async (req, res) => {
       return send(res, 200, JSON.stringify({ ticket: t, messages }));
     }
     if (p === '/api/refresh') { await refreshCache(); return send(res, 200, JSON.stringify({ ok: true, at: cache.at })); }
+    if (p === '/api/l2') {
+      // Log penanganan L2: start_time (diambil) vs end_time (selesai) per team.
+      const team = u.searchParams.get('team');
+      const q = (u.searchParams.get('q') || '').trim();
+      const domain = [];
+      if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
+      if (q) domain.push(['ticket_id', 'ilike', q]);
+      const logs = await kw('helpdesk.ticket.l2', 'search_read', [domain,
+        ['id', 'ticket_id', 'team_id', 'user_id', 'start_time', 'end_time', 'activity_id', 'reason', 'create_date']],
+        { order: 'create_date desc', limit: 30 });
+      return send(res, 200, JSON.stringify({ logs, live: true }));
+    }
+    if (p === '/api/kpi-l2') {
+      const team = u.searchParams.get('team');
+      const domain = team ? [['team_id', '=', parseInt(team, 10)]] : [];
+      const rows = await kw('helpdesk.ticket.l2', 'search_read', [domain,
+        ['id', 'user_id', 'start_time', 'end_time', 'activity_id']], { order: 'create_date desc', limit: 2000 });
+      const mins = (a, b) => {
+        if (!a || !b) return null;
+        const d = (new Date(b.replace(' ', 'T') + 'Z') - new Date(a.replace(' ', 'T') + 'Z')) / 60000;
+        return d >= 0 && d < 43200 ? Math.round(d) : null; // buang anomali >30 hari
+      };
+      const avg = (xs) => xs.length ? Math.round(xs.reduce((s, x) => s + x, 0) / xs.length) : null;
+      const durs = [], byUser = {}, byAct = {}, noEnd = [];
+      for (const r of rows) {
+        const d = mins(r.start_time, r.end_time);
+        if (d !== null) durs.push(d); else noEnd.push(r.id);
+        const un = r.user_id?.[1] || 'Tanpa nama';
+        byUser[un] = byUser[un] || { n: 0, durs: [] };
+        byUser[un].n++;
+        if (d !== null) byUser[un].durs.push(d);
+        const an = r.activity_id?.[1] || 'Lainnya';
+        byAct[an] = byAct[an] || { n: 0, durs: [] };
+        byAct[an].n++;
+        if (d !== null) byAct[an].durs.push(d);
+      }
+      const users = Object.entries(byUser).map(([name, v]) => ({ name, total: v.n, avgMenit: avg(v.durs) }))
+        .sort((a, b) => b.total - a.total);
+      const acts = Object.entries(byAct).map(([name, v]) => ({ name, total: v.n, avgMenit: avg(v.durs) }))
+        .sort((a, b) => b.total - a.total);
+      return send(res, 200, JSON.stringify({
+        total: rows.length, selesai: durs.length, jalan: noEnd.length,
+        avgMenit: avg(durs), users, acts,
+      }));
+    }
     // static
     let file = normalize(join(PUB, p === '/' ? 'index.html' : p.slice(1)));
     if (!file.startsWith(PUB)) return send(res, 403, 'forbidden', 'text/plain');
