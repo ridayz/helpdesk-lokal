@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helpdesk Lokal — Notifikasi Gangguan</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">☁️ Helpdesk Lokal</div>
+  <div class="status">
+    <span id="dot" class="dot off"></span>
+    <span id="statusText">menghubungkan…</span>
+    <span id="syncText" class="muted"></span>
+  </div>
+  <div class="actions">
+    <button id="btnNotif">🔔 Aktifkan notifikasi</button>
+    <button id="btnRefresh">↻ Refresh</button>
+  </div>
+</header>
+
+<main>
+  <section id="err" class="err hidden"></section>
+
+  <section class="cards">
+    <div class="card big"><div class="num" id="openCount">–</div><div class="lbl">Tiket terbuka</div></div>
+    <div class="card"><div class="num" id="totalCount">–</div><div class="lbl">Total tiket</div></div>
+    <div class="card stages" id="stageCards"></div>
+  </section>
+
+  <section class="openbox">
+    <h2>🚨 Perlu perhatian <span id="openListCount" class="pill"></span></h2>
+    <div id="openList" class="list"></div>
+  </section>
+
+  <section class="toolbar">
+    <h2>🎫 Tiket terbaru</h2>
+    <div class="filters">
+      <select id="fStage"><option value="">Semua stage</option></select>
+      <select id="fTeam"><option value="">Semua team</option></select>
+      <select id="fChannel"><option value="">Semua channel</option></select>
+      <input id="fQ" type="search" placeholder="Cari no / judul / customer…">
+    </div>
+  </section>
+  <div id="ticketList" class="list"></div>
+</main>
+
+<div id="drawer" class="drawer hidden">
+  <div class="sheet">
+    <button id="drawerClose" class="x">✕ Tutup</button>
+    <div id="detail"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

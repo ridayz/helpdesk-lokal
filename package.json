@@ -1,0 +1,10 @@
+{
+  "name": "helpdesk-lokal",
+  "version": "1.0.0",
+  "description": "Dashboard helpdesk lokal (tanpa buka port) + notifikasi gangguan, sumber data Odoo Helpdesk.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": { "node": ">=18" }
+}
