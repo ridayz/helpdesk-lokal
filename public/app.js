@@ -160,13 +160,67 @@ async function loadL2Recent() {
       return `<tr><td class="t">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</td>
         <td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>
         <td>${esc(lg.start_time || '-')}</td><td>${esc(lg.end_time || 'jalan…')}</td>
-        <td>${dur === null ? '…' : fmtDur(dur)}</td><td>${esc(lg.reason || '-')}</td></tr>`;
-    }).join('')) || '<tr><td colspan="7" class="muted">Tidak ketemu.</td></tr>';
+        <td>${dur === null ? '…' : fmtDur(dur)}</td><td>${esc(lg.reason || '-')}</td>
+        <td><button class="cp" data-cp="${lg.id}" title="Copy siap-paste ke Dynamics">📋</button></td></tr>`;
+    }).join('')) || '<tr><td colspan="8" class="muted">Tidak ketemu.</td></tr>';
+    box.querySelectorAll('button.cp').forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const lg = (recent.logs || []).find((x) => String(x.id) === b.dataset.cp);
+        if (lg) copyText(l2CopyText(lg), b);
+      };
+    });
   } catch (e) {
-    box.innerHTML = '<tr><td colspan="7" class="muted">Gagal: ' + esc(e.message) + '</td></tr>';
+    box.innerHTML = '<tr><td colspan="8" class="muted">Gagal: ' + esc(e.message) + '</td></tr>';
   }
 }
 
+function fmtID(dt) {
+  if (!dt) return '-';
+  const d = new Date(String(dt).replace(' ', 'T') + 'Z');
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+async function copyText(txt, btn) {
+  try {
+    await navigator.clipboard.writeText(txt);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = '✅';
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  }
+}
+// format siap-paste ke form Dynamics Service Ticket
+function l2CopyText(lg) {
+  const num = (lg.ticket_id?.[1] || '').split(' - ')[0];
+  return [
+    'Ticket Number: ' + num,
+    'Start: ' + fmtID(lg.start_time),
+    'End: ' + fmtID(lg.end_time || ''),
+    'Location: -',
+    'Teknisi: ' + (lg.user_id?.[1] || '-'),
+    'Aktivitas: ' + (lg.activity_id?.[1] || '-'),
+    'Notes: ' + (lg.reason || '-'),
+  ].join('\n');
+}
+function ticketCopyText(t) {
+  return [
+    'Ticket Number: ' + (t.number || '-'),
+    'Diambil: ' + fmtID(startOf(t)),
+    'Close: ' + fmtID(endOf(t)),
+    'Respon: ' + fmtDur(diffMenit(t.create_date, startOf(t))),
+    'Pengerjaan: ' + fmtDur(diffMenit(startOf(t), endOf(t))),
+    'Total: ' + fmtDur(diffMenit(t.create_date, endOf(t))),
+    'Lokasi: ' + (t.pop_location_id?.[1] || '-'),
+    'Teknisi: ' + (t.user_id?.[1] || '-'),
+    'Notes: ' + ((t.description_text || '').slice(0, 500) || '-'),
+  ].join('\n');
+}
 function beep() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -217,7 +271,7 @@ async function openDetail(id) {
     <div class="${badgeClass(cur)}">${esc(cur)}</div>
     <div class="stepper">${steps}</div>
     ${cur === 'Hold' ? '<div class="muted">⏸️ Tiket ini sedang di-Hold.</div>' : ''}
-    <h3>⏱️ Waktu (KPI)</h3>
+    <h3>⏱️ Waktu (KPI) <button id="btnCopyDyn" title="Copy siap-paste ke Dynamics">📋 Copy</button></h3>
     <dl class="kv">
       <dt>Mulai dikerjakan</dt><dd>${esc(startOf(t) || 'belum diambil')}</dd>
       <dt>Selesai / close</dt><dd>${esc(endOf(t) || 'belum selesai')}</dd>
@@ -245,6 +299,8 @@ async function openDetail(id) {
     <h3>Update terakhir (${j.messages.length})</h3>
     ${j.messages.map((m) => `<div class="msg"><b>${esc(m.author)}</b> <span class="muted">${esc(m.date)}</span><br>${esc(m.text).slice(0, 600)}</div>`).join('') || '<div class="muted">Belum ada log.</div>'}`;
   $('drawer').classList.remove('hidden');
+  const bcd = $('btnCopyDyn');
+  if (bcd) bcd.onclick = (e) => { e.stopPropagation(); copyText(ticketCopyText(t), bcd); };
 }
 
 async function refreshAll(manual) {
