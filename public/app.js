@@ -179,7 +179,10 @@ function fmtID(dt) {
   if (!dt) return '-';
   const d = new Date(String(dt).replace(' ', 'T') + 'Z');
   const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  let h = d.getHours();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(h)}:${p(d.getMinutes())} ${ap}`;
 }
 async function copyText(txt, btn) {
   try {
