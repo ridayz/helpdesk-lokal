@@ -541,15 +541,14 @@ $('fTo').onchange = () => { loadL2Recent(); loadKpi(); };
 $('fToday').onclick = () => { const d = iso(new Date()); setRange(d, d); loadL2Recent(); loadKpi(); };
 $('f7d').onclick = () => { const t = new Date(), f = new Date(); f.setDate(t.getDate() - 6); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
 $('f30d').onclick = () => { const t = new Date(), f = new Date(); f.setDate(t.getDate() - 29); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
-$('fYtd').onclick = () => { const t = new Date(), f = new Date(t.getFullYear(), 0, 1); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
+if ($('fYtd')) $('fYtd').onclick = () => { const t = new Date(), f = new Date(t.getFullYear(), 0, 1); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
   const savedTeam = localStorage.getItem('hdl_team') || '17';
   $('openList').innerHTML = '<tr><td colspan="7"><div class="skel">memuat…</div></td></tr>';
   $('ticketList').innerHTML = '<tr><td colspan="8"><div class="skel">memuat…</div></td></tr>';
   await refreshAll(false);
-  if (!$('fTeam').value && [...$('fTeam').options].some((o) => o.value === savedTeam)) {
-    $('fTeam').value = savedTeam;
-    loadTickets();
-    loadKpi();
-  }
+  $('fTeam').value = savedTeam;
+  localStorage.setItem('hdl_team', savedTeam);
+  await loadL2Recent();
+  await loadKpi();
   pollTimer = setInterval(() => refreshAll(false), 60000);
 })();
