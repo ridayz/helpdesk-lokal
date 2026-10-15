@@ -5,22 +5,16 @@ const seen = JSON.parse(localStorage.getItem(seenKey) || '{}');
 const saveSeen = () => localStorage.setItem(seenKey, JSON.stringify(seen));
 const submitted = new Set(JSON.parse(localStorage.getItem('hdl_submitted') || '[]'));
 const saveSubmitted = () => localStorage.setItem('hdl_submitted', JSON.stringify([...submitted]));
-function monthList() {
-  const out = [];
-  const d = new Date();
-  for (let i = 0; i < 6; i++) {
-    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
-    out.push({ v: `${y}-${m}`, label: `${y}-${m}` });
-    d.setMonth(d.getMonth() - 1);
-  }
-  return out;
+function iso(d) { return d.toISOString().slice(0, 10); }
+function rangeDefault() {
+  const to = new Date(), from = new Date();
+  from.setDate(to.getDate() - 13);
+  return { from: iso(from), to: iso(to) };
 }
-function fillMonths() {
-  for (const id of ['fMonthL2', 'fMonthKpi']) {
-    $(id).innerHTML = monthList().map((m) => `<option value="${m.v}">${m.label}</option>`).join('');
-  }
+function getRange() {
+  const r = rangeDefault();
+  return { from: $('fFrom').value || r.from, to: $('fTo').value || r.to };
 }
-function curMonth() { return ($('fMonthL2') && $('fMonthL2').value) || monthList()[0].v; }
 let meta = null;
 let pollTimer = null;
 
@@ -193,7 +187,7 @@ async function loadKpi() {
     : 'L2 Field Ops Access - Cibitung';
   $('kpiTeam').textContent = teamName;
   try {
-    const k = await api('/api/kpi-l2?team=' + teamId + '&month=' + curMonth());
+    const k = await api('/api/kpi-l2?team=' + teamId + '&from=' + getRange().from + '&to=' + getRange().to);
     window._kpi = k;
     renderStats();
     $('kpiCards').innerHTML = `
@@ -217,16 +211,26 @@ async function loadL2Recent() {
   const q = ($('fL2Q')?.value || '').trim();
   const box = $('kpiRecent');
   try {
-    const recent = await api('/api/l2?team=' + teamId + '&month=' + curMonth() + '&q=' + encodeURIComponent(q));
+    const recent = await api('/api/l2?team=' + teamId + '&from=' + getRange().from + '&to=' + getRange().to + '&q=' + encodeURIComponent(q));
     let logs = recent.logs || [];
     if ($('fUnsub')?.checked) logs = logs.filter((lg) => !submitted.has(lg.id));
     box.innerHTML = (logs.map((lg) => {
       const dur = diffMenit(lg.start_time, lg.end_time);
       const done = submitted.has(lg.id);
+      const ti = (recent.tinfo || {})[lg.ticket_id?.[0]] || {};
+      const logBits = [];
+      if (ti.create_date) logBits.push('🛠 ' + esc(ti.create_uid?.[1] || '-') + ' buat ' + esc(String(ti.create_date).slice(5, 16)));
+      if (ti.user_id?.[1] && ti.assigned_date) logBits.push('✋ ' + esc(ti.user_id[1]) + ' take ' + esc(String(ti.assigned_date).slice(5, 16)));
+      if (ti.solved_by?.[1] || ti.solved_team?.[1]) logBits.push('✔ ' + esc(ti.solved_by?.[1] || ti.solved_team?.[1] || '-') + ' solve ' + esc(String(ti.solved_date || '').slice(5, 16)));
+      if (ti.closed_by_l1?.[1]) logBits.push('🔒 ' + esc(ti.closed_by_l1[1]) + ' close ' + esc(String(ti.closed_date || '').slice(5, 16)));
+      const logHtml = logBits.length
+        ? logBits.map((b) => `<div class="logline">${b}</div>`).join('')
+        : `<span class="muted">-</span>`;
       return `<tr class="${done ? 'submitted' : ''}"><td class="t">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</td>
         <td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>
         <td>${esc(lg.start_time || '-')}</td><td>${esc(lg.end_time || 'jalan…')}</td>
         <td>${dur === null ? '…' : fmtDur(dur)}</td><td>${esc(lg.reason || '-')}</td>
+        <td class="logcell">${logHtml}</td>
         <td><button class="cp" data-cp="${lg.id}" title="Copy siap-paste ke Dynamics">📋</button></td>
         <td><button class="sub${done ? ' done' : ''}" data-sub="${lg.id}" title="Tandai sudah submit ke Dynamics">${done ? '✅' : '⬜'}</button></td></tr>`;
     }).join('')) || '<tr><td colspan="9" class="muted">Tidak ketemu.</td></tr>';
@@ -521,8 +525,7 @@ let qT = null;
 $('fQ').oninput = () => { clearTimeout(qT); qT = setTimeout(loadTickets, 300); };
 let l2T = null;
 $('fL2Q').oninput = () => { clearTimeout(l2T); l2T = setTimeout(loadL2Recent, 300); };
-$('fMonthL2').onchange = () => { $('fMonthKpi').value = $('fMonthL2').value; loadL2Recent(); loadKpi(); };
-$('fMonthKpi').onchange = () => { $('fMonthL2').value = $('fMonthKpi').value; loadL2Recent(); loadKpi(); };
+function setRange(from, to) { $('fFrom').value = from; $('fTo').value = to; }
 $('fUnsub').onchange = loadL2Recent;
 $('sideQ').oninput = () => {
   document.querySelector('.nav[data-page="tiket"]').click();
@@ -532,7 +535,13 @@ $('sideQ').oninput = () => {
 
 (async () => {
   paintNotifBtn();
-  fillMonths();
+  let r0 = rangeDefault(); setRange(r0.from, r0.to);
+$('fFrom').onchange = () => { loadL2Recent(); loadKpi(); };
+$('fTo').onchange = () => { loadL2Recent(); loadKpi(); };
+$('fToday').onclick = () => { const d = iso(new Date()); setRange(d, d); loadL2Recent(); loadKpi(); };
+$('f7d').onclick = () => { const t = new Date(), f = new Date(); f.setDate(t.getDate() - 6); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
+$('f30d').onclick = () => { const t = new Date(), f = new Date(); f.setDate(t.getDate() - 29); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
+$('fYtd').onclick = () => { const t = new Date(), f = new Date(t.getFullYear(), 0, 1); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
   const savedTeam = localStorage.getItem('hdl_team') || '17';
   $('openList').innerHTML = '<tr><td colspan="7"><div class="skel">memuat…</div></td></tr>';
   $('ticketList').innerHTML = '<tr><td colspan="8"><div class="skel">memuat…</div></td></tr>';

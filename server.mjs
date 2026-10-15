@@ -94,14 +94,17 @@ async function recentL2() {
   return l2Cache.rows;
 }
 
-// Filter bulan ?month=YYYY-MM → range create_date.
-function monthRange(prefix, month) {
-  const m = /^(\d{4})-(\d{2})$/.exec(month || '');
-  if (!m) return [];
-  const y = parseInt(m[1], 10), mo = parseInt(m[2], 10);
-  const p = (n) => String(n).padStart(2, '0');
-  const next = mo === 12 ? `${y + 1}-01` : `${y}-${p(mo + 1)}`;
-  return [[`${prefix}create_date`, '>=', `${y}-${p(mo)}-01`], [`${prefix}create_date`, '<', `${next}-01`]];
+// Filter rentang tanggal ?from=YYYY-MM-DD&to=YYYY-MM-DD.
+function dateRange(field, from, to) {
+  const f = field || 'create_date';
+  const d = [];
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) d.push([f, '>=', from]);
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    const t = new Date(to + 'T00:00:00Z');
+    t.setUTCDate(t.getUTCDate() + 1);
+    d.push([f, '<', t.toISOString().slice(0, 10)]);
+  }
+  return d;
 }
 
 // --- cache ringan: ringkasan buat dashboard ---
@@ -157,7 +160,7 @@ const server = createServer(async (req, res) => {
       const team = u.searchParams.get('team');
       const stage = u.searchParams.get('stage');
       const ch = u.searchParams.get('channel');
-      const domain = [];
+      const domain = dateRange('', u.searchParams.get('from'), u.searchParams.get('to'));
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
       if (stage) domain.push(['stage_id', '=', parseInt(stage, 10)]);
       if (ch) domain.push(['channel_id', '=', parseInt(ch, 10)]);
@@ -250,6 +253,7 @@ const server = createServer(async (req, res) => {
       return send(res, 200, JSON.stringify({ ok: true, op, stage: await redo() }));
     }
     if (p === '/api/l2') {
+      try {
       // Log penanganan L2: start_time (diambil) vs end_time (selesai) per team.
       const team = u.searchParams.get('team');
       const q = (u.searchParams.get('q') || '').trim();
@@ -260,33 +264,62 @@ const server = createServer(async (req, res) => {
         //    ini tembus tiket yang akun ini tidak boleh baca langsung.
         const recent = await recentL2();
         const ql = q.toLowerCase();
+        const from = u.searchParams.get('from'), to = u.searchParams.get('to');
         const byLocal = recent.filter((r) =>
           (!team || r.team_id?.[0] === parseInt(team, 10)) &&
-          (!month || String(r.create_date || '').startsWith(month)) &&
+          (!from || String(r.create_date || '') >= from) &&
+          (!to || String(r.create_date || '') <= to) &&
           `${r.ticket_id?.[1] || ''} ${r.user_id?.[1] || ''} ${r.reason || ''} ${r.activity_id?.[1] || ''}`.toLowerCase().includes(ql));
         // 2) plus tiket yang kebaca akun ini
         const qd = await ticketQDomain(q);
         const tids = await kw('helpdesk.ticket', 'search', [qd], {});
         let byTicket = [];
         if (tids.length) {
-          const d2 = monthRange('', month);
+          const d2 = dateRange('', from, to);
           if (team) d2.push(['team_id', '=', parseInt(team, 10)]);
           d2.push(['ticket_id', 'in', tids]);
           byTicket = await kw('helpdesk.ticket.l2', 'search_read', [d2, LF], { order: 'create_date desc', limit: 30 });
         }
         const seenIds = new Set();
         const logs = [...byLocal, ...byTicket].filter((r) => !seenIds.has(r.id) && seenIds.add(r.id)).slice(0, 30);
-        return send(res, 200, JSON.stringify({ logs, live: true }));
+        const etids = [...new Set(logs.map((r) => r.ticket_id?.[0]).filter(Boolean))];
+        let tinfo = {};
+        if (etids.length) {
+          try {
+            const rows = await kw('helpdesk.ticket', 'search_read', [[['id', 'in', etids],
+              ['id', 'number', 'stage_id', 'create_date', 'create_uid', 'write_date', 'write_uid',
+               'assigned_date', 'user_id', 'solved_date', 'solved_by', 'solved_team', 'closed_date', 'closed_by_l1']]], {});
+            tinfo = Object.fromEntries(rows.map((t) => [t.id, t]));
+          } catch {
+            tinfo = {};
+          }
+        }
+        return send(res, 200, JSON.stringify({ logs, tinfo, live: true }));
       }
-      const domain = monthRange('', month);
+      const domain = dateRange('', u.searchParams.get('from'), u.searchParams.get('to'));
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
       const logs = await kw('helpdesk.ticket.l2', 'search_read', [domain, LF],
         { order: 'create_date desc', limit: 30 });
-      return send(res, 200, JSON.stringify({ logs, live: true }));
+      const tids2 = [...new Set(logs.map((r) => r.ticket_id?.[0]).filter(Boolean))];
+      let tinfo2 = {};
+      if (tids2.length) {
+        try {
+          const rows2 = await kw('helpdesk.ticket', 'search_read', [[['id', 'in', tids2],
+            ['id', 'number', 'stage_id', 'create_date', 'create_uid', 'write_date', 'write_uid',
+             'assigned_date', 'user_id', 'solved_date', 'solved_by', 'solved_team', 'closed_date', 'closed_by_l1']]], {});
+          tinfo2 = Object.fromEntries(rows2.map((t) => [t.id, t]));
+        } catch {
+          tinfo2 = {};
+        }
+      }
+      return send(res, 200, JSON.stringify({ logs, tinfo: tinfo2, live: true }));
+    } catch (e) {
+      return send(res, 500, JSON.stringify({ error: e.message }));
+    }
     }
     if (p === '/api/kpi-l2') {
       const team = u.searchParams.get('team');
-      const domain = monthRange('', u.searchParams.get('month'));
+      const domain = dateRange('', u.searchParams.get('from'), u.searchParams.get('to'));
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
       const rows = await kw('helpdesk.ticket.l2', 'search_read', [domain,
         ['id', 'user_id', 'start_time', 'end_time', 'activity_id']], { order: 'create_date desc', limit: 2000 });

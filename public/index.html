@@ -74,12 +74,19 @@
   <section class="page hidden" id="page-penanganan">
     <div class="panel">
       <div class="filters">
-        <select id="fMonthL2" title="Filter bulan"></select>
+        <div class="cal">
+          <input type="date" id="fFrom" title="Dari tanggal">
+          <span>→</span>
+          <input type="date" id="fTo" title="Sampai tanggal">
+          <button id="fToday" class="mini">Hari ini</button>
+          <button id="f7d" class="mini">7 hari</button>
+          <button id="f30d" class="mini">30 hari</button>
+        </div>
         <input id="fL2Q" type="search" placeholder="🔍 Cari no tiket penanganan…">
         <label class="check"><input id="fUnsub" type="checkbox"> Hanya belum submit</label>
       </div>
       <div class="tblwrap"><table class="tbl"><thead><tr>
-        <th>Tiket</th><th>Teknisi</th><th>Aktivitas</th><th>Mulai</th><th>Selesai</th><th>Durasi</th><th>Alasan</th><th>Copy</th><th>Submit</th>
+        <th>Tiket</th><th>Teknisi</th><th>Aktivitas</th><th>Mulai</th><th>Selesai</th><th>Durasi</th><th>Alasan</th><th>Log</th><th>Copy</th><th>Submit</th>
       </tr></thead><tbody id="kpiRecent"></tbody></table></div>
     </div>
   </section>
