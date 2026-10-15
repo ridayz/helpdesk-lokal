@@ -94,6 +94,16 @@ async function recentL2() {
   return l2Cache.rows;
 }
 
+// Filter bulan ?month=YYYY-MM → range create_date.
+function monthRange(prefix, month) {
+  const m = /^(\d{4})-(\d{2})$/.exec(month || '');
+  if (!m) return [];
+  const y = parseInt(m[1], 10), mo = parseInt(m[2], 10);
+  const p = (n) => String(n).padStart(2, '0');
+  const next = mo === 12 ? `${y + 1}-01` : `${y}-${p(mo + 1)}`;
+  return [[`${prefix}create_date`, '>=', `${y}-${p(mo)}-01`], [`${prefix}create_date`, '<', `${next}-01`]];
+}
+
 // --- cache ringan: ringkasan buat dashboard ---
 let cache = { at: 0, meta: null, latest: [], open: [] };
 async function refreshCache() {
@@ -243,6 +253,7 @@ const server = createServer(async (req, res) => {
       // Log penanganan L2: start_time (diambil) vs end_time (selesai) per team.
       const team = u.searchParams.get('team');
       const q = (u.searchParams.get('q') || '').trim();
+      const month = u.searchParams.get('month');
       const LF = ['id', 'ticket_id', 'team_id', 'user_id', 'start_time', 'end_time', 'activity_id', 'reason', 'create_date'];
       if (q) {
         // 1) cocokkan lokal di cache 1500 log terbaru (by display tiket/user/alasan) —
@@ -251,22 +262,23 @@ const server = createServer(async (req, res) => {
         const ql = q.toLowerCase();
         const byLocal = recent.filter((r) =>
           (!team || r.team_id?.[0] === parseInt(team, 10)) &&
+          (!month || String(r.create_date || '').startsWith(month)) &&
           `${r.ticket_id?.[1] || ''} ${r.user_id?.[1] || ''} ${r.reason || ''} ${r.activity_id?.[1] || ''}`.toLowerCase().includes(ql));
         // 2) plus tiket yang kebaca akun ini
         const qd = await ticketQDomain(q);
         const tids = await kw('helpdesk.ticket', 'search', [qd], {});
         let byTicket = [];
         if (tids.length) {
-          const d2 = team
-            ? [['team_id', '=', parseInt(team, 10)], ['ticket_id', 'in', tids]]
-            : [['ticket_id', 'in', tids]];
+          const d2 = monthRange('', month);
+          if (team) d2.push(['team_id', '=', parseInt(team, 10)]);
+          d2.push(['ticket_id', 'in', tids]);
           byTicket = await kw('helpdesk.ticket.l2', 'search_read', [d2, LF], { order: 'create_date desc', limit: 30 });
         }
         const seenIds = new Set();
         const logs = [...byLocal, ...byTicket].filter((r) => !seenIds.has(r.id) && seenIds.add(r.id)).slice(0, 30);
         return send(res, 200, JSON.stringify({ logs, live: true }));
       }
-      const domain = [];
+      const domain = monthRange('', month);
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
       const logs = await kw('helpdesk.ticket.l2', 'search_read', [domain, LF],
         { order: 'create_date desc', limit: 30 });
@@ -274,7 +286,8 @@ const server = createServer(async (req, res) => {
     }
     if (p === '/api/kpi-l2') {
       const team = u.searchParams.get('team');
-      const domain = team ? [['team_id', '=', parseInt(team, 10)]] : [];
+      const domain = monthRange('', u.searchParams.get('month'));
+      if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
       const rows = await kw('helpdesk.ticket.l2', 'search_read', [domain,
         ['id', 'user_id', 'start_time', 'end_time', 'activity_id']], { order: 'create_date desc', limit: 2000 });
       const mins = (a, b) => {

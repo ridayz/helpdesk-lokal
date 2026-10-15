@@ -3,6 +3,24 @@ const $ = (id) => document.getElementById(id);
 const seenKey = 'hdl_seen_v1';
 const seen = JSON.parse(localStorage.getItem(seenKey) || '{}');
 const saveSeen = () => localStorage.setItem(seenKey, JSON.stringify(seen));
+const submitted = new Set(JSON.parse(localStorage.getItem('hdl_submitted') || '[]'));
+const saveSubmitted = () => localStorage.setItem('hdl_submitted', JSON.stringify([...submitted]));
+function monthList() {
+  const out = [];
+  const d = new Date();
+  for (let i = 0; i < 6; i++) {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
+    out.push({ v: `${y}-${m}`, label: `${y}-${m}` });
+    d.setMonth(d.getMonth() - 1);
+  }
+  return out;
+}
+function fillMonths() {
+  for (const id of ['fMonthL2', 'fMonthKpi']) {
+    $(id).innerHTML = monthList().map((m) => `<option value="${m.v}">${m.label}</option>`).join('');
+  }
+}
+function curMonth() { return ($('fMonthL2') && $('fMonthL2').value) || monthList()[0].v; }
 let meta = null;
 let pollTimer = null;
 
@@ -183,7 +201,7 @@ async function loadKpi() {
     : 'L2 Field Ops Access - Cibitung';
   $('kpiTeam').textContent = teamName;
   try {
-    const k = await api('/api/kpi-l2?team=' + teamId);
+    const k = await api('/api/kpi-l2?team=' + teamId + '&month=' + curMonth());
     window._kpi = k;
     renderStats();
     $('kpiCards').innerHTML = `
@@ -207,15 +225,19 @@ async function loadL2Recent() {
   const q = ($('fL2Q')?.value || '').trim();
   const box = $('kpiRecent');
   try {
-    const recent = await api('/api/l2?team=' + teamId + '&q=' + encodeURIComponent(q));
-    box.innerHTML = ((recent.logs || []).map((lg) => {
+    const recent = await api('/api/l2?team=' + teamId + '&month=' + curMonth() + '&q=' + encodeURIComponent(q));
+    let logs = recent.logs || [];
+    if ($('fUnsub')?.checked) logs = logs.filter((lg) => !submitted.has(lg.id));
+    box.innerHTML = (logs.map((lg) => {
       const dur = diffMenit(lg.start_time, lg.end_time);
-      return `<tr><td class="t">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</td>
+      const done = submitted.has(lg.id);
+      return `<tr class="${done ? 'submitted' : ''}"><td class="t">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</td>
         <td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>
         <td>${esc(lg.start_time || '-')}</td><td>${esc(lg.end_time || 'jalan…')}</td>
         <td>${dur === null ? '…' : fmtDur(dur)}</td><td>${esc(lg.reason || '-')}</td>
-        <td><button class="cp" data-cp="${lg.id}" title="Copy siap-paste ke Dynamics">📋</button></td></tr>`;
-    }).join('')) || '<tr><td colspan="8" class="muted">Tidak ketemu.</td></tr>';
+        <td><button class="cp" data-cp="${lg.id}" title="Copy siap-paste ke Dynamics">📋</button></td>
+        <td><button class="sub${done ? ' done' : ''}" data-sub="${lg.id}" title="Tandai sudah submit ke Dynamics">${done ? '✅' : '⬜'}</button></td></tr>`;
+    }).join('')) || '<tr><td colspan="9" class="muted">Tidak ketemu.</td></tr>';
     box.querySelectorAll('button.cp').forEach((b) => {
       b.onclick = (e) => {
         e.stopPropagation();
@@ -223,8 +245,17 @@ async function loadL2Recent() {
         if (lg) copyText(l2CopyText(lg), b);
       };
     });
+    box.querySelectorAll('button.sub').forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const id = parseInt(b.dataset.sub, 10);
+        if (submitted.has(id)) submitted.delete(id); else submitted.add(id);
+        saveSubmitted();
+        loadL2Recent();
+      };
+    });
   } catch (e) {
-    box.innerHTML = '<tr><td colspan="8" class="muted">Gagal: ' + esc(e.message) + '</td></tr>';
+    box.innerHTML = '<tr><td colspan="9" class="muted">Gagal: ' + esc(e.message) + '</td></tr>';
   }
 }
 
@@ -498,6 +529,9 @@ let qT = null;
 $('fQ').oninput = () => { clearTimeout(qT); qT = setTimeout(loadTickets, 300); };
 let l2T = null;
 $('fL2Q').oninput = () => { clearTimeout(l2T); l2T = setTimeout(loadL2Recent, 300); };
+$('fMonthL2').onchange = () => { $('fMonthKpi').value = $('fMonthL2').value; loadL2Recent(); loadKpi(); };
+$('fMonthKpi').onchange = () => { $('fMonthL2').value = $('fMonthKpi').value; loadL2Recent(); loadKpi(); };
+$('fUnsub').onchange = loadL2Recent;
 $('sideQ').oninput = () => {
   document.querySelector('.nav[data-page="tiket"]').click();
   $('fQ').value = $('sideQ').value;
@@ -506,6 +540,7 @@ $('sideQ').oninput = () => {
 
 (async () => {
   paintNotifBtn();
+  fillMonths();
   const savedTeam = localStorage.getItem('hdl_team') || '17';
   $('openList').innerHTML = '<tr><td colspan="7"><div class="skel">memuat…</div></td></tr>';
   $('ticketList').innerHTML = '<tr><td colspan="8"><div class="skel">memuat…</div></td></tr>';

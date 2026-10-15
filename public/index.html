@@ -67,16 +67,19 @@
   <section class="page hidden" id="page-penanganan">
     <div class="panel">
       <div class="filters">
+        <select id="fMonthL2" title="Filter bulan"></select>
         <input id="fL2Q" type="search" placeholder="🔍 Cari no tiket penanganan…">
+        <label class="check"><input id="fUnsub" type="checkbox"> Hanya belum submit</label>
       </div>
       <div class="tblwrap"><table class="tbl"><thead><tr>
-        <th>Tiket</th><th>Teknisi</th><th>Aktivitas</th><th>Mulai</th><th>Selesai</th><th>Durasi</th><th>Alasan</th><th>Copy</th>
+        <th>Tiket</th><th>Teknisi</th><th>Aktivitas</th><th>Mulai</th><th>Selesai</th><th>Durasi</th><th>Alasan</th><th>Copy</th><th>Submit</th>
       </tr></thead><tbody id="kpiRecent"></tbody></table></div>
     </div>
   </section>
 
   <section class="page hidden" id="page-kpi">
     <div class="panel"><h2>📊 KPI Penanganan <span id="kpiTeam" class="pill"></span></h2>
+      <div class="filters"><select id="fMonthKpi" title="Filter bulan"></select></div>
       <div class="cards" id="kpiCards"></div>
     </div>
     <div class="panel"><h2>Per teknisi</h2>
