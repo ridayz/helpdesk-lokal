@@ -147,14 +147,6 @@ function renderStats() {
         (i % 2 ? '' : `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H + 16}" text-anchor="middle" fill="#8f97c4" font-size="11">${d.date.slice(5)}</text>`);
     }).join('') + `<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#e349c5"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg>`;
-    // area penanganan/hari
-    const mx = Math.max(1, ...s.l2ByDay.map((d) => d.total));
-    const pts = s.l2ByDay.map((d, i) => [(i / (s.l2ByDay.length - 1 || 1)) * W, H - Math.max(2, (d.total / mx) * (H - 10))]);
-    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-    $('area').innerHTML = `<svg viewBox="0 0 ${W} ${H + 22}">
-      <polygon points="0,${H} ${pts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')} ${W},${H}" fill="rgba(34,211,238,.15)"/>
-      <path d="${line}" fill="none" stroke="#22d3ee" stroke-width="2.5"/>
-      ${pts.filter((_, i) => i % 2 === 0).map((p, k) => `<text x="${p[0].toFixed(1)}" y="${H + 16}" text-anchor="middle" fill="#8f97c4" font-size="11">${s.l2ByDay[k * 2].date.slice(5)}</text>`).join('')}</svg>`;
   }
 }
 
