@@ -10,25 +10,35 @@ body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: va
 /* --- sidebar --- */
 .side { width: 250px; flex-shrink: 0; background: #070b24; display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; border-right: 1px solid var(--line); padding: 0 14px; }
-.brand { font-size: 21px; font-weight: 800; padding: 20px 6px 12px; color: #fff; display: flex; gap: 8px; align-items: center; }
-.brand .logo { background: linear-gradient(135deg, var(--pink), var(--purple)); border-radius: 10px;
-  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
-.search { margin-bottom: 10px; }
-.search input { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--ink); }
-.navlabel { font-size: 11px; letter-spacing: .12em; color: var(--muted); padding: 8px 10px 4px; }
+.brand { font-size: 22px; font-weight: 800; padding: 22px 6px 14px; color: #fff; display: flex; gap: 10px; align-items: center; }
+.brand .logo { width: 30px; height: 30px; position: relative; flex-shrink: 0; }
+.brand .logo i { position: absolute; inset: 0; display: block;
+  background: linear-gradient(135deg, #22d3ee 0 42%, #e349c5 42% 100%);
+  border-radius: 35% 65% 55% 45% / 45% 40% 60% 55%; }
+.brand .logo::after { content: ""; position: absolute; right: -3px; top: -3px; width: 12px; height: 12px;
+  background: #e349c5; border-radius: 50%; }
+.search { margin-bottom: 12px; display: flex; align-items: center; gap: 8px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
+.search span { color: var(--muted); font-size: 14px; }
+.search input { flex: 1; background: transparent; border: none; padding: 10px 0; min-width: 0; }
+.search input:focus { outline: none; }
+hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 4px; }
 .side nav { display: flex; flex-direction: column; gap: 4px; }
-.nav { background: transparent; border: none; color: var(--muted); text-align: left;
-  font-size: 15px; font-weight: 600; padding: 11px 12px; border-radius: 12px; cursor: pointer; }
+.nav { background: transparent; border: none; color: #7a86b8; text-align: left;
+  font-size: 15px; font-weight: 600; padding: 11px 12px; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; gap: 12px; }
+.nav i { font-style: normal; width: 22px; text-align: center; font-size: 16px; opacity: .85; }
 .nav:hover { background: rgba(139,92,246,.12); color: var(--ink); }
-.nav.active { background: rgba(227,73,197,.14); color: #f9a8e8; }
-.nav .pill { background: var(--pink); margin-left: 4px; }
-.usercard { display: flex; gap: 10px; align-items: center; margin: 14px 4px; padding: 10px;
-  background: var(--panel); border-radius: 14px; }
+.nav.active { background: rgba(227,73,197,.12); color: #f472d0; }
+.nav .pill { background: var(--pink); color: #fff; margin-left: auto; }
+.usercard { display: flex; gap: 10px; align-items: center; margin: 4px 4px 12px; padding: 6px; }
+.usercard b { color: #fff; }
 .avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--pink), var(--purple));
   display: inline-flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; flex-shrink: 0; }
 .avatar.sm { width: 34px; height: 34px; font-size: 14px; }
-.cta { display: block; text-align: center; text-decoration: none; font-weight: 800; color: #fff;
-  background: linear-gradient(90deg, var(--pink), var(--purple)); border-radius: 12px; padding: 12px; margin: 2px 0 10px; }
+.cta { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-weight: 800;
+  font-size: 15px; color: #fff; background: linear-gradient(90deg, #e349c5, #8b5cf6);
+  border-radius: 12px; padding: 13px; margin: 2px 0 10px; }
 .cta:hover { filter: brightness(1.12); }
 .sidefoot { margin-top: auto; padding: 14px 6px; display: flex; gap: 10px; align-items: center;
   font-size: 13px; border-top: 1px solid var(--line); color: var(--muted); }
