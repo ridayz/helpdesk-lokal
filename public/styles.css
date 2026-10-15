@@ -5,8 +5,8 @@
   --green: #22c55e; --red: #ef4444; --amber: #f59e0b;
 }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--ink);
-  font-size: 15px; line-height: 1.5; display: flex; min-height: 100vh; }
+body { margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink);
+  font-size: 15px; line-height: 1.5; display: flex; min-height: 100vh; -webkit-font-smoothing: antialiased; }
 /* --- sidebar --- */
 .side { width: 250px; flex-shrink: 0; background: #070b24; display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; border-right: 1px solid var(--line); padding: 0 14px; }
@@ -31,6 +31,9 @@ hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 4px; }
 .nav:hover { background: rgba(139,92,246,.12); color: var(--ink); }
 .nav.active { background: rgba(227,73,197,.12); color: #f472d0; }
 .nav .pill { background: var(--pink); color: #fff; margin-left: auto; }
+.nav .chev { margin-left: auto; color: var(--muted); font-size: 18px; }
+.side nav.sub { margin-top: 2px; }
+.side nav.sub .nav { padding: 10px 12px; }
 .usercard { display: flex; gap: 10px; align-items: center; margin: 4px 4px 12px; padding: 6px; }
 .usercard b { color: #fff; }
 .avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--pink), var(--purple));
