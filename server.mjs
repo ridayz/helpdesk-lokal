@@ -168,6 +168,46 @@ const server = createServer(async (req, res) => {
       return send(res, 200, JSON.stringify({ ticket: t, messages }));
     }
     if (p === '/api/refresh') { await refreshCache(); return send(res, 200, JSON.stringify({ ok: true, at: cache.at })); }
+    if (p === '/api/solve-actions') {
+      const acts = await kw('ticket.action', 'search_read', [[], ['id', 'name']], { order: 'name' });
+      return send(res, 200, JSON.stringify({ actions: acts }));
+    }
+    const mAct = p.match(/^\/api\/tickets\/(\d+)\/action$/);
+    if (mAct && req.method === 'POST') {
+      // AKSI TULIS ke Odoo — hanya jalan kalau user pencet tombol + konfirmasi di UI.
+      const id = parseInt(mAct[1], 10);
+      const body = await new Promise((resolve) => {
+        let b = '';
+        req.on('data', (c) => { b += c; });
+        req.on('end', () => { try { resolve(JSON.parse(b || '{}')); } catch { resolve({}); } });
+      });
+      const op = body.op;
+      const vis = await kw('helpdesk.ticket', 'search_read', [[['id', '=', id]], ['id', 'number', 'stage_id']], {});
+      if (!vis?.length) return send(res, 404, JSON.stringify({ error: 'tiket tidak kelihatan akun ini' }));
+      const uid = await getUid();
+      const redo = async () => (await kw('helpdesk.ticket', 'search_read', [[['id', '=', id]], ['stage_id']], {}))?.[0]?.stage_id?.[1] || null;
+      if (op === 'accept') {
+        await kw('helpdesk.ticket', 'write', [[id], { user_id: uid }], {});
+      } else if (op === 'hold') {
+        if (!body.reason?.trim()) return send(res, 400, JSON.stringify({ error: 'alasan hold wajib diisi' }));
+        const w = await kw('helpdesk.hold.wizard', 'create', [{ ticket_id: id, reason: body.reason.trim() }], {});
+        await kw('helpdesk.hold.wizard', 'action_confirm', [w], {});
+      } else if (op === 'resume') {
+        await kw('helpdesk.ticket', 'action_resume', [id], {});
+      } else if (op === 'solve') {
+        if (!body.actionId) return send(res, 400, JSON.stringify({ error: 'pilih action penyelesaian dulu' }));
+        const w = await kw('helpdesk.solve.wizard', 'create', [{ ticket_id: id, ticket_action_id: parseInt(body.actionId, 10), action_description: body.reason || '' }], {});
+        await kw('helpdesk.solve.wizard', 'action_confirm', [w], {});
+      } else if (op === 'close') {
+        const w = await kw('helpdesk.close.ticket.wizard', 'create', [{ ticket_id: id, action_description: body.reason || '' }], {});
+        await kw('helpdesk.close.ticket.wizard', 'action_confirm_close', [w], {});
+      } else {
+        return send(res, 400, JSON.stringify({ error: 'aksi tidak dikenal' }));
+      }
+      console.log(`[AKSI] ${op} tiket ${vis[0].number} oleh ${ODOO_LOGIN}`);
+      cache.at = 0; // paksa refresh biar langsung kelihatan
+      return send(res, 200, JSON.stringify({ ok: true, op, stage: await redo() }));
+    }
     if (p === '/api/l2') {
       // Log penanganan L2: start_time (diambil) vs end_time (selesai) per team.
       const team = u.searchParams.get('team');

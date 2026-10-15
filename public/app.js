@@ -287,6 +287,15 @@ async function openDetail(id) {
   $('detail').innerHTML = `
     <h2>${esc(t.number || '')}</h2>
     <div class="${badgeClass(cur)}">${esc(cur)}</div>
+    <div class="actionbar">
+      <button data-act="accept" title="Assign tiket ini ke kamu">✅ Accept</button>
+      <button data-act="hold" title="Hold + wajib alasan">⏸️ Hold</button>
+      <button data-act="resume" title="Balikin dari Hold">▶️ Resume</button>
+      <select id="solveAct"><option value="">— action solve —</option></select>
+      <button data-act="solve" title="Tandai Solved">✔️ Solve</button>
+      <button data-act="close" title="Tutup tiket">🔒 Close</button>
+    </div>
+    <div id="actMsg" class="muted"></div>
     <div class="stepper">${steps}</div>
     ${cur === 'Hold' ? '<div class="muted">⏸️ Tiket ini sedang di-Hold.</div>' : ''}
     <h3>⏱️ Waktu (KPI) <button id="btnCopyDyn" title="Copy siap-paste ke Dynamics">📋 Copy</button></h3>
@@ -319,6 +328,63 @@ async function openDetail(id) {
   $('drawer').classList.remove('hidden');
   const bcd = $('btnCopyDyn');
   if (bcd) bcd.onclick = (e) => { e.stopPropagation(); copyText(ticketCopyText(t), bcd); };
+  // --- tombol aksi (nulis ke Odoo, selalu konfirmasi dulu) ---
+  let solveActs = null;
+  const msg = (s) => { $('actMsg').textContent = s; };
+  const post = async (op, extra = {}) => {
+    const r = await fetch('/api/tickets/' + t.id + '/action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op, ...extra }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    return j;
+  };
+  $('detail').querySelectorAll('[data-act]').forEach((b) => {
+    b.onclick = async () => {
+      const op = b.dataset.act;
+      try {
+        b.disabled = true;
+        if (op === 'accept') {
+          if (!confirm('Ambil tiket ' + (t.number || '') + ' (assign ke kamu)?')) return;
+          const j = await post('accept');
+          msg('✅ Diambil. Stage: ' + (j.stage || '-'));
+        } else if (op === 'hold') {
+          const reason = prompt('Alasan Hold (wajib):');
+          if (!reason?.trim()) return;
+          if (!confirm('Hold tiket ' + (t.number || '') + '?')) return;
+          const j = await post('hold', { reason: reason.trim() });
+          msg('⏸️ Di-hold. Stage: ' + (j.stage || '-'));
+        } else if (op === 'resume') {
+          if (!confirm('Resume tiket ' + (t.number || '') + ' dari Hold?')) return;
+          const j = await post('resume');
+          msg('▶️ Di-resume. Stage: ' + (j.stage || '-'));
+        } else if (op === 'solve') {
+          if (!solveActs) {
+            solveActs = (await api('/api/solve-actions')).actions || [];
+            $('solveAct').innerHTML = '<option value="">— action solve —</option>' +
+              solveActs.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+          }
+          const aid = $('solveAct').value;
+          if (!aid) { msg('Pilih action solve dulu di dropdown.'); return; }
+          const reason = prompt('Catatan penyelesaian (boleh kosong):') ?? '';
+          if (!confirm('Solve tiket ' + (t.number || '') + '?')) return;
+          const j = await post('solve', { actionId: aid, reason });
+          msg('✔️ Solved. Stage: ' + (j.stage || '-'));
+        } else if (op === 'close') {
+          const reason = prompt('Catatan penutupan (boleh kosong):') ?? '';
+          if (!confirm('CLOSE tiket ' + (t.number || '') + '? Tiket hilang dari list terbuka.')) return;
+          const j = await post('close', { reason });
+          msg('🔒 Closed. Stage: ' + (j.stage || '-'));
+        }
+        refreshAll(false);
+        openDetail(t.id);
+      } catch (e) {
+        msg('⚠️ Gagal: ' + e.message);
+      } finally {
+        b.disabled = false;
+      }
+    };
+  });
 }
 
 async function refreshAll(manual) {
