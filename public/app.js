@@ -184,11 +184,13 @@ const ODOO_BASE = 'https://helpdesk.indonet.id';
 const odooTicketUrl = (id) => ODOO_BASE + '/web#id=' + id + '&model=helpdesk.ticket&view_type=form';
 // Drill-down KPI "masih jalan": sekali klik tombol lihat → daftar tiketnya tampil
 // di halaman Penanganan. Sumber = /api/l2?jalan=1 (end_time kosong), semua waktu,
-// sama persis dengan angka KPI. Klik nama tiket = drawer kalau bisa dibuka,
-// otomatis new-tab Odoo kalau akun tidak punya akses baca tiketnya.
+// sama persis dengan angka KPI. Klik nama tiket = drawer kalau tiketnya bisa dibaca
+// akun; kalau di luar akses (record rules) muncul toast penjelasan, bukan error Odoo.
+// Mode drill-down dikunci dari auto-refresh via window._jalanMode.
 async function showJalan({ user = '', activity = '' }) {
   const box = $('kpiRecent');
   document.querySelector('[data-page=penanganan]').click();
+  window._jalanMode = true; // kunci: auto-refresh 60dtk dilarang menimpa tabel selama drill-down
   box.innerHTML = '<tr><td colspan="10"><div class="skel">memuat log jalan…</div></td></tr>';
   try {
     const recent = await api('/api/l2?team=17&jalan=1&limit=500');
@@ -210,7 +212,7 @@ async function showJalan({ user = '', activity = '' }) {
         ? logBits.map((b) => `<div class="logline">${b}</div>`).join('')
         : `<span class="muted">-</span>`;
       return `<tr class="${done ? 'submitted' : ''}" style="outline:1.5px solid #e349c5; outline-offset:-1.5px">`
-        + `<td class="t"><a href="#" data-tid="${tid}" title="Buka tiket">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</a> <a href="${odooTicketUrl(tid)}" target="_blank" rel="noopener" title="Buka langsung di Odoo" style="text-decoration:none">↗</a></td>`
+        + `<td class="t"><a href="#" data-tid="${tid}" title="Buka tiket">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</a>${(ti && ti.id) ? ` <a href="${odooTicketUrl(tid)}" target="_blank" rel="noopener" title="Buka langsung di Odoo" style="text-decoration:none">↗</a>` : ''}</td>`
         + `<td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>`
         + `<td>${esc(lg.start_time || '-')}</td><td style="color:#f59e0b">⏳ jalan…</td>`
         + `<td>${dur === null ? '…' : fmtDur(dur)}</td><td>${esc(lg.reason || '-')}</td>`
@@ -221,13 +223,16 @@ async function showJalan({ user = '', activity = '' }) {
     box.innerHTML = `<tr><td colspan="10">⏳ <b>${logs.length} log masih jalan</b> <span class="muted">— ${esc(label)} • semua waktu (ikut angka KPI)</span> <button class="mini" id="btnBackL2">← kembali</button></td></tr>`
       + (rows || `<tr><td colspan="10" class="muted">Tidak ada tiket jalan untuk ${esc(label)}.</td></tr>`);
     const bb = $('btnBackL2');
-    if (bb) bb.onclick = () => loadL2Recent();
+    if (bb) bb.onclick = () => { window._jalanMode = false; loadL2Recent(); };
     box.querySelectorAll('[data-tid]').forEach((a) => {
       a.onclick = (ev) => {
         ev.preventDefault(); ev.stopPropagation();
         const t = (recent.tinfo || {})[a.dataset.tid];
-        if (t && t.id) openDetail(t.id);
-        else window.open(odooTicketUrl(a.dataset.tid), '_blank');
+        if (t && t.id) openDetail(t.id).catch(() => notify('⚠️ Gagal buka detail', 'Coba lagi atau cek manual di Odoo.'));
+        else {
+          const lg = (recent.logs || []).find((x) => String(x.ticket_id?.[0]) === a.dataset.tid);
+          notify('🔒 Di luar akses akun', ((lg?.ticket_id?.[1] || 'Tiket ini').split(' - ')[0]) + ' tidak bisa dibuka — Odoo menolak akses baca (record rules). Data penanganannya tetap tampil di baris ini.');
+        }
       };
     });
     box.querySelectorAll('button.cp').forEach((b) => {
@@ -250,7 +255,7 @@ async function showJalan({ user = '', activity = '' }) {
   } catch {
     box.innerHTML = '<tr><td colspan="10" class="muted">Gagal muat. <button class="mini" id="btnBackL2b">← kembali</button></td></tr>';
     const bb2 = $('btnBackL2b');
-    if (bb2) bb2.onclick = () => loadL2Recent();
+    if (bb2) bb2.onclick = () => { window._jalanMode = false; loadL2Recent(); };
   }
 }
 
@@ -287,6 +292,8 @@ async function loadKpi() {
 }
 
 async function loadL2Recent() {
+  if (window._jalanMode) return; // drill-down jalan sedang tampil — jangan ditimpa
+  window._jalanMode = false;
   const teamId = $('fTeam').value || '17';
   const q = ($('fL2Q')?.value || '').trim();
   const box = $('kpiRecent');
