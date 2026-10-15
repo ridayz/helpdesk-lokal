@@ -319,7 +319,9 @@ const server = createServer(async (req, res) => {
     }
     if (p === '/api/kpi-l2') {
       const team = u.searchParams.get('team');
-      const domain = dateRange('', u.searchParams.get('from'), u.searchParams.get('to'));
+      // KPI = TOTAL SEMUA penanganan tim (bukan ikut filter tanggal/penanganan).
+      // Tiket yang sudah close/solve tetap masuk; yang masih jalan ikut dihitung.
+      const domain = [];
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
       const rows = await kw('helpdesk.ticket.l2', 'search_read', [domain,
         ['id', 'user_id', 'start_time', 'end_time', 'activity_id']], { order: 'create_date desc', limit: 2000 });

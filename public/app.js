@@ -187,7 +187,7 @@ async function loadKpi() {
     : 'L2 Field Ops Access - Cibitung';
   $('kpiTeam').textContent = teamName;
   try {
-    const k = await api('/api/kpi-l2?team=' + teamId + '&from=' + getRange().from + '&to=' + getRange().to);
+    const k = await api('/api/kpi-l2?team=' + teamId);
     window._kpi = k;
     renderStats();
     $('kpiCards').innerHTML = `
@@ -195,8 +195,37 @@ async function loadKpi() {
       <div class="card"><div class="num">${k.selesai}/${k.total}</div><div class="lbl">Penanganan selesai</div></div>
       <div class="card"><div class="num">${k.jalan}</div><div class="lbl">Masih jalan (belum end)</div></div>`;
     $('kpiUsers').innerHTML = (k.users || []).map((u) =>
-      `<tr><td class="t">${esc(u.name)}</td><td>🛠️ ${u.total} <span class="muted">(${u.selesai} ✅ / ${u.jalan} jalan)</span></td><td>⏱ ${fmtDur(u.avgMenit)}</td></tr>`).join('')
+      `<tr><td class="t">${esc(u.name)}</td><td>🛠️ ${u.total} <span class="muted">(${u.selesai} ✅ / ${u.jalan} jalan)</span>${u.jalan ? ` <button class="mini" data-jalan="${esc(u.name)}" title="Cari ${u.jalan} tiket masih jalan milik ${esc(u.name)} di Penanganan">🔎 lihat</button>` : ''}</td><td>⏱ ${fmtDur(u.avgMenit)}</td></tr>`).join('')
       || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
+    $('kpiUsers').querySelectorAll('[data-jalan]').forEach((b) => {
+      b.onclick = async (e) => {
+        e.stopPropagation();
+        const tech = b.dataset.jalan;
+        const box = $('kpiRecent');
+        box.innerHTML = '<tr><td colspan="10"><div class="skel">menyaring…</div></td></tr>';
+        const teamId = $('fTeam').value || '17';
+        try {
+          const recent = await api('/api/l2?team=' + teamId + '&from=' + getRange().from + '&to=' + getRange().to + '&q=' + encodeURIComponent(tech));
+          const logs = (recent.logs || []).filter((lg) => (lg.user_id?.[1] || '') === tech && !lg.end_time);
+          box.innerHTML = (logs.map((lg) => {
+            const ti = (recent.tinfo || {})[lg.ticket_id?.[0]] || {};
+            return `<tr style="outline:1.5px solid #e349c5; outline-offset:-1.5px">
+              <td class="t"><a href="#" data-tid="${lg.ticket_id?.[0]}" style="color:#e349c5; text-decoration:underline">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</a></td>
+              <td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>
+              <td>${esc(lg.start_time || '-')}</td><td style="color:#f59e0b">⏳ jalan sejak</td>
+              <td>${esc(lg.reason || '-')}</td></tr>`;
+          }).join('')) || '<tr><td colspan="6" class="muted">Tidak ada tiket jalan untuk ' + esc(tech) + ' di range ini.</td></tr>';
+          box.querySelectorAll('[data-tid]').forEach((a) => {
+            a.onclick = (ev) => {
+              ev.preventDefault(); ev.stopPropagation();
+              const t = (recent.tinfo || {})[a.dataset.tid];
+              if (t) openDetail(t.id);
+            };
+          });
+          document.querySelector('[data-page=penanganan]').click();
+        } catch { box.innerHTML = '<tr><td colspan="6" class="muted">Gagal muat.</td></tr>'; }
+      };
+    });
     $('kpiActs').innerHTML = (k.acts || []).map((a) =>
       `<tr><td class="t">${esc(a.name)}</td><td>🛠️ ${a.total} <span class="muted">(${a.selesai} ✅ / ${a.jalan} jalan)</span></td><td>⏱ ${fmtDur(a.avgMenit)}</td></tr>`).join('')
       || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
