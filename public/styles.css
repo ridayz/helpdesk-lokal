@@ -73,6 +73,16 @@ button:hover { border-color: var(--pink); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 .gauge, #bars, #area { width: 100%; }
 .gauge svg, #bars svg, #area svg { width: 100%; height: auto; display: block; }
+.gauge svg { max-width: 300px; margin: 0 auto; }
+#bars svg, #area svg { max-height: 190px; }
+.stat .vl { font-size: 24px; }
+.num { font-size: 24px; }
+.panel h2 { font-size: 16px; }
+.topbar h1 { font-size: 19px; }
+.tbl { font-size: 13px; }
+.tbl tbody td { padding: 9px 10px; }
+.panel { padding: 14px 16px; }
+.cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .card { background: var(--panel2); border-radius: 14px; padding: 14px 18px; min-width: 160px; }
 .num { font-size: 30px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
 .lbl { color: var(--muted); font-size: 13px; }
