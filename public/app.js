@@ -180,6 +180,80 @@ async function loadOpen() {
   bindRows(box);
 }
 
+const ODOO_BASE = 'https://helpdesk.indonet.id';
+const odooTicketUrl = (id) => ODOO_BASE + '/web#id=' + id + '&model=helpdesk.ticket&view_type=form';
+// Drill-down KPI "masih jalan": sekali klik tombol lihat → daftar tiketnya tampil
+// di halaman Penanganan. Sumber = /api/l2?jalan=1 (end_time kosong), semua waktu,
+// sama persis dengan angka KPI. Klik nama tiket = drawer kalau bisa dibuka,
+// otomatis new-tab Odoo kalau akun tidak punya akses baca tiketnya.
+async function showJalan({ user = '', activity = '' }) {
+  const box = $('kpiRecent');
+  document.querySelector('[data-page=penanganan]').click();
+  box.innerHTML = '<tr><td colspan="10"><div class="skel">memuat log jalan…</div></td></tr>';
+  try {
+    const recent = await api('/api/l2?team=17&jalan=1&limit=500');
+    let logs = recent.logs || [];
+    if (user) logs = logs.filter((lg) => (lg.user_id?.[1] || '') === user);
+    if (activity) logs = logs.filter((lg) => (lg.activity_id?.[1] || 'Lainnya') === activity);
+    const label = [user && ('Teknisi: ' + user), activity && ('Aktivitas: ' + activity)].filter(Boolean).join(' • ') || 'Semua';
+    const rows = logs.map((lg) => {
+      const tid = lg.ticket_id?.[0];
+      const dur = diffMenit(lg.start_time, lg.end_time);
+      const done = submitted.has(lg.id);
+      const ti = (recent.tinfo || {})[tid] || {};
+      const logBits = [];
+      if (ti.create_date) logBits.push('🛠 ' + esc(ti.create_uid?.[1] || '-') + ' buat ' + esc(String(ti.create_date).slice(5, 16)));
+      if (ti.user_id?.[1] && ti.assigned_date) logBits.push('✋ ' + esc(ti.user_id[1]) + ' take ' + esc(String(ti.assigned_date).slice(5, 16)));
+      if (ti.solved_by?.[1] || ti.solved_team?.[1]) logBits.push('✔ ' + esc(ti.solved_by?.[1] || ti.solved_team?.[1] || '-') + ' solve ' + esc(String(ti.solved_date || '').slice(5, 16)));
+      if (ti.closed_by_l1?.[1]) logBits.push('🔒 ' + esc(ti.closed_by_l1[1]) + ' close ' + esc(String(ti.closed_date || '').slice(5, 16)));
+      const logHtml = logBits.length
+        ? logBits.map((b) => `<div class="logline">${b}</div>`).join('')
+        : `<span class="muted">-</span>`;
+      return `<tr class="${done ? 'submitted' : ''}" style="outline:1.5px solid #e349c5; outline-offset:-1.5px">`
+        + `<td class="t"><a href="#" data-tid="${tid}" title="Buka tiket">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</a> <a href="${odooTicketUrl(tid)}" target="_blank" rel="noopener" title="Buka langsung di Odoo" style="text-decoration:none">↗</a></td>`
+        + `<td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>`
+        + `<td>${esc(lg.start_time || '-')}</td><td style="color:#f59e0b">⏳ jalan…</td>`
+        + `<td>${dur === null ? '…' : fmtDur(dur)}</td><td>${esc(lg.reason || '-')}</td>`
+        + `<td class="logcell">${logHtml}</td>`
+        + `<td><button class="cp" data-cp="${lg.id}" title="Copy siap-paste ke Dynamics">📋</button></td>`
+        + `<td><button class="sub${done ? ' done' : ''}" data-sub="${lg.id}" title="Tandai sudah submit ke Dynamics">${done ? '✅' : '⬜'}</button></td></tr>`;
+    }).join('');
+    box.innerHTML = `<tr><td colspan="10">⏳ <b>${logs.length} log masih jalan</b> <span class="muted">— ${esc(label)} • semua waktu (ikut angka KPI)</span> <button class="mini" id="btnBackL2">← kembali</button></td></tr>`
+      + (rows || `<tr><td colspan="10" class="muted">Tidak ada tiket jalan untuk ${esc(label)}.</td></tr>`);
+    const bb = $('btnBackL2');
+    if (bb) bb.onclick = () => loadL2Recent();
+    box.querySelectorAll('[data-tid]').forEach((a) => {
+      a.onclick = (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const t = (recent.tinfo || {})[a.dataset.tid];
+        if (t && t.id) openDetail(t.id);
+        else window.open(odooTicketUrl(a.dataset.tid), '_blank');
+      };
+    });
+    box.querySelectorAll('button.cp').forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const lg = (recent.logs || []).find((x) => String(x.id) === b.dataset.cp);
+        if (lg) copyText(l2CopyText(lg), b);
+      };
+    });
+    box.querySelectorAll('button.sub').forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const id = parseInt(b.dataset.sub, 10);
+        if (submitted.has(id)) submitted.delete(id); else submitted.add(id);
+        saveSubmitted();
+        b.classList.toggle('done', submitted.has(id));
+        b.textContent = submitted.has(id) ? '✅' : '⬜';
+      };
+    });
+  } catch {
+    box.innerHTML = '<tr><td colspan="10" class="muted">Gagal muat. <button class="mini" id="btnBackL2b">← kembali</button></td></tr>';
+    const bb2 = $('btnBackL2b');
+    if (bb2) bb2.onclick = () => loadL2Recent();
+  }
+}
+
 async function loadKpi() {
   const teamId = $('fTeam').value || '17';
   const teamName = $('fTeam').value
@@ -198,37 +272,14 @@ async function loadKpi() {
       `<tr><td class="t">${esc(u.name)}</td><td>🛠️ ${u.total} <span class="muted">(${u.selesai} ✅ / ${u.jalan} jalan)</span>${u.jalan ? ` <button class="mini" data-jalan="${esc(u.name)}" title="Cari ${u.jalan} tiket masih jalan milik ${esc(u.name)} di Penanganan">🔎 lihat</button>` : ''}</td><td>⏱ ${fmtDur(u.avgMenit)}</td></tr>`).join('')
       || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
     $('kpiUsers').querySelectorAll('[data-jalan]').forEach((b) => {
-      b.onclick = async (e) => {
-        e.stopPropagation();
-        const tech = b.dataset.jalan;
-        const box = $('kpiRecent');
-        box.innerHTML = '<tr><td colspan="10"><div class="skel">menyaring…</div></td></tr>';
-        const teamId = $('fTeam').value || '17';
-        try {
-          const recent = await api('/api/l2?team=' + teamId + '&from=' + getRange().from + '&to=' + getRange().to + '&q=' + encodeURIComponent(tech));
-          const logs = (recent.logs || []).filter((lg) => (lg.user_id?.[1] || '') === tech && !lg.end_time);
-          box.innerHTML = (logs.map((lg) => {
-            const ti = (recent.tinfo || {})[lg.ticket_id?.[0]] || {};
-            return `<tr style="outline:1.5px solid #e349c5; outline-offset:-1.5px">
-              <td class="t"><a href="#" data-tid="${lg.ticket_id?.[0]}" style="color:#e349c5; text-decoration:underline">${esc(lg.ticket_id?.[1] || ('#' + lg.id))}</a></td>
-              <td>${esc(lg.user_id?.[1] || '-')}</td><td>${esc(lg.activity_id?.[1] || '-')}</td>
-              <td>${esc(lg.start_time || '-')}</td><td style="color:#f59e0b">⏳ jalan sejak</td>
-              <td>${esc(lg.reason || '-')}</td></tr>`;
-          }).join('')) || '<tr><td colspan="6" class="muted">Tidak ada tiket jalan untuk ' + esc(tech) + ' di range ini.</td></tr>';
-          box.querySelectorAll('[data-tid]').forEach((a) => {
-            a.onclick = (ev) => {
-              ev.preventDefault(); ev.stopPropagation();
-              const t = (recent.tinfo || {})[a.dataset.tid];
-              if (t) openDetail(t.id);
-            };
-          });
-          document.querySelector('[data-page=penanganan]').click();
-        } catch { box.innerHTML = '<tr><td colspan="6" class="muted">Gagal muat.</td></tr>'; }
-      };
+      b.onclick = (e) => { e.stopPropagation(); showJalan({ user: b.dataset.jalan }); };
     });
     $('kpiActs').innerHTML = (k.acts || []).map((a) =>
-      `<tr><td class="t">${esc(a.name)}</td><td>🛠️ ${a.total} <span class="muted">(${a.selesai} ✅ / ${a.jalan} jalan)</span></td><td>⏱ ${fmtDur(a.avgMenit)}</td></tr>`).join('')
+      `<tr><td class="t">${esc(a.name)}</td><td>🛠️ ${a.total} <span class="muted">(${a.selesai} ✅ / ${a.jalan} jalan)</span>${a.jalan ? ` <button class="mini" data-jalan-act="${esc(a.name)}" title="Lihat ${a.jalan} log masih jalan untuk aktivitas ini">🔎 lihat</button>` : ''}</td><td>⏱ ${fmtDur(a.avgMenit)}</td></tr>`).join('')
       || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
+    $('kpiActs').querySelectorAll('[data-jalan-act]').forEach((b) => {
+      b.onclick = (e) => { e.stopPropagation(); showJalan({ activity: b.dataset.jalanAct }); };
+    });
     loadL2Recent();
   } catch (e) {
     $('kpiCards').innerHTML = '<div class="muted">KPI gagal dimuat: ' + esc(e.message) + '</div>';

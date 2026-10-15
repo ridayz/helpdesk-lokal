@@ -298,8 +298,12 @@ const server = createServer(async (req, res) => {
       }
       const domain = dateRange('', u.searchParams.get('from'), u.searchParams.get('to'));
       if (team) domain.push(['team_id', '=', parseInt(team, 10)]);
+      if (u.searchParams.get('jalan') === '1') domain.push(['end_time', '=', false]);
+      let lim = parseInt(u.searchParams.get('limit') || '30', 10);
+      if (!lim || lim < 1) lim = 30;
+      if (lim > 500) lim = 500;
       const logs = await kw('helpdesk.ticket.l2', 'search_read', [domain, LF],
-        { order: 'create_date desc', limit: 30 });
+        { order: 'create_date desc', limit: lim });
       const tids2 = [...new Set(logs.map((r) => r.ticket_id?.[0]).filter(Boolean))];
       let tinfo2 = {};
       if (tids2.length) {
