@@ -195,10 +195,10 @@ async function loadKpi() {
       <div class="card"><div class="num">${k.selesai}/${k.total}</div><div class="lbl">Penanganan selesai</div></div>
       <div class="card"><div class="num">${k.jalan}</div><div class="lbl">Masih jalan (belum end)</div></div>`;
     $('kpiUsers').innerHTML = (k.users || []).map((u) =>
-      `<tr><td class="t">${esc(u.name)}</td><td>🛠️ ${u.total}</td><td>⏱ ${fmtDur(u.avgMenit)}</td></tr>`).join('')
+      `<tr><td class="t">${esc(u.name)}</td><td>🛠️ ${u.total} <span class="muted">(${u.selesai} ✅ / ${u.jalan} jalan)</span></td><td>⏱ ${fmtDur(u.avgMenit)}</td></tr>`).join('')
       || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
     $('kpiActs').innerHTML = (k.acts || []).map((a) =>
-      `<tr><td class="t">${esc(a.name)}</td><td>🛠️ ${a.total}x</td><td>⏱ ${fmtDur(a.avgMenit)}</td></tr>`).join('')
+      `<tr><td class="t">${esc(a.name)}</td><td>🛠️ ${a.total} <span class="muted">(${a.selesai} ✅ / ${a.jalan} jalan)</span></td><td>⏱ ${fmtDur(a.avgMenit)}</td></tr>`).join('')
       || '<tr><td colspan="3" class="muted">Belum ada data.</td></tr>';
     loadL2Recent();
   } catch (e) {

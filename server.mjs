@@ -329,23 +329,36 @@ const server = createServer(async (req, res) => {
         return d >= 0 && d < 43200 ? Math.round(d) : null; // buang anomali >30 hari
       };
       const avg = (xs) => xs.length ? Math.round(xs.reduce((s, x) => s + x, 0) / xs.length) : null;
+      const now = Date.now();
       const durs = [], byUser = {}, byAct = {}, noEnd = [];
       for (const r of rows) {
         const d = mins(r.start_time, r.end_time);
-        if (d !== null) durs.push(d); else noEnd.push(r.id);
+        let effMenit = null; // durasi efektif untuk rata-rata (selesai → full, masih jalan → sampai sekarang)
+        if (d !== null) { effMenit = d; durs.push(d); }
+        else {
+          noEnd.push(r.id);
+          if (r.start_time) {
+            const m = Math.round((now - new Date(r.start_time.replace(' ', 'T') + 'Z').getTime()) / 60000);
+            if (m >= 0 && m < 43200) effMenit = m;
+          }
+        }
         const un = r.user_id?.[1] || 'Tanpa nama';
-        byUser[un] = byUser[un] || { n: 0, durs: [] };
+        byUser[un] = byUser[un] || { n: 0, done: 0, durs: [] };
         byUser[un].n++;
-        if (d !== null) byUser[un].durs.push(d);
+        if (d !== null) byUser[un].done++;
+        if (effMenit !== null) byUser[un].durs.push(effMenit);
         const an = r.activity_id?.[1] || 'Lainnya';
-        byAct[an] = byAct[an] || { n: 0, durs: [] };
+        byAct[an] = byAct[an] || { n: 0, done: 0, durs: [] };
         byAct[an].n++;
-        if (d !== null) byAct[an].durs.push(d);
+        if (d !== null) byAct[an].done++;
+        if (effMenit !== null) byAct[an].durs.push(effMenit);
       }
-      const users = Object.entries(byUser).map(([name, v]) => ({ name, total: v.n, avgMenit: avg(v.durs) }))
-        .sort((a, b) => b.total - a.total);
-      const acts = Object.entries(byAct).map(([name, v]) => ({ name, total: v.n, avgMenit: avg(v.durs) }))
-        .sort((a, b) => b.total - a.total);
+      const users = Object.entries(byUser).map(([name, v]) => ({
+        name, total: v.n, selesai: v.done, jalan: v.n - v.done, avgMenit: avg(v.durs),
+      })).sort((a, b) => b.total - a.total);
+      const acts = Object.entries(byAct).map(([name, v]) => ({
+        name, total: v.n, selesai: v.done, jalan: v.n - v.done, avgMenit: avg(v.durs),
+      })).sort((a, b) => b.total - a.total);
       return send(res, 200, JSON.stringify({
         total: rows.length, selesai: durs.length, jalan: noEnd.length,
         avgMenit: avg(durs), users, acts,
