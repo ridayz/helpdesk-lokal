@@ -286,9 +286,9 @@ const server = createServer(async (req, res) => {
         let tinfo = {};
         if (etids.length) {
           try {
-            const rows = await kw('helpdesk.ticket', 'search_read', [[['id', 'in', etids],
+            const rows = await kw('helpdesk.ticket', 'search_read', [[['id', 'in', etids]],
               ['id', 'number', 'stage_id', 'create_date', 'create_uid', 'write_date', 'write_uid',
-               'assigned_date', 'user_id', 'solved_date', 'solved_by', 'solved_team', 'closed_date', 'closed_by_l1']]], {});
+               'assigned_date', 'user_id', 'solved_date', 'solved_by', 'solved_team', 'closed_date', 'closed_by_l1']], {});
             tinfo = Object.fromEntries(rows.map((t) => [t.id, t]));
           } catch {
             tinfo = {};
@@ -304,9 +304,9 @@ const server = createServer(async (req, res) => {
       let tinfo2 = {};
       if (tids2.length) {
         try {
-          const rows2 = await kw('helpdesk.ticket', 'search_read', [[['id', 'in', tids2],
+          const rows2 = await kw('helpdesk.ticket', 'search_read', [[['id', 'in', tids2]],
             ['id', 'number', 'stage_id', 'create_date', 'create_uid', 'write_date', 'write_uid',
-             'assigned_date', 'user_id', 'solved_date', 'solved_by', 'solved_team', 'closed_date', 'closed_by_l1']]], {});
+             'assigned_date', 'user_id', 'solved_date', 'solved_by', 'solved_team', 'closed_date', 'closed_by_l1']], {});
           tinfo2 = Object.fromEntries(rows2.map((t) => [t.id, t]));
         } catch {
           tinfo2 = {};
