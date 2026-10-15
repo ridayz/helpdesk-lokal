@@ -3,45 +3,46 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Helpdesk Lokal — Notifikasi Gangguan</title>
+<title>INDONET Helpdesk — Dashboard</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="syncbar" class="syncbar hidden"><div></div></div>
 <aside class="side">
-  <div class="brand">☁️ Helpdesk <span>Lokal</span></div>
+  <div class="brand"><span class="logo">◈</span> DashHelp</div>
+  <div class="search"><input id="sideQ" type="search" placeholder="🔍 Search for.."></div>
+  <div class="navlabel">MENU</div>
   <nav>
     <button class="nav active" data-page="dashboard">📊 Dashboard</button>
     <button class="nav" data-page="tiket">🎫 Tiket <span id="navOpen" class="pill"></span></button>
     <button class="nav" data-page="penanganan">🛠️ Penanganan</button>
     <button class="nav" data-page="kpi">📈 KPI</button>
   </nav>
-  <div class="sidefoot">
-    <span id="dot" class="dot off"></span>
-    <div><div id="statusText">menghubungkan…</div><div id="syncText" class="muted"></div></div>
-  </div>
+  <div class="usercard"><div class="avatar">R</div><div><b>Ridwan</b><div class="muted">Cibitung Team</div></div></div>
+  <a class="cta" href="https://orga8ad9bca.crm5.dynamics.com/main.aspx?appid=b6961383-a3f6-f011-8407-0022481a1bf1&pagetype=entityrecord&etn=cr327_serviceticket" target="_blank" rel="noopener">➕ New Service Ticket</a>
+  <div class="sidefoot"><span id="dot" class="dot off"></span><div><div id="statusText">menghubungkan…</div><div id="syncText" class="muted"></div></div></div>
 </aside>
 
 <main>
   <header class="topbar">
     <h1 id="pageTitle">Dashboard</h1>
     <div class="actions">
-      <button id="btnNotif">🔔 Notifikasi</button>
-      <button id="btnRefresh">↻ Refresh</button>
+      <button id="btnNotif">🔔 Aktif</button>
+      <button id="btnRefresh">↻</button>
+      <div class="avatar sm">R</div>
     </div>
   </header>
   <section id="err" class="err hidden"></section>
 
   <section class="page" id="page-dashboard">
-    <div class="cards">
-      <div class="card big"><div class="num" id="openCount">–</div><div class="lbl">Tiket terbuka</div></div>
-      <div class="card"><div class="num" id="totalCount">–</div><div class="lbl">Total tiket</div></div>
-      <div class="card prog"><div class="lbl">Progress selesai</div><div class="bar"><div id="solveBar"></div></div><div id="solvePct" class="pct">–</div></div>
-      <div class="card"><div class="num" id="l2Count">–</div><div class="lbl">Penanganan Cibitung</div></div>
+    <div class="cards" id="statCards"></div>
+    <div class="grid2">
+      <div class="panel"><h2>Progress Selesai</h2><div id="gauge" class="gauge"></div><div id="gaugeLegend" class="legend"></div></div>
+      <div class="panel"><h2>Tiket per Hari <span class="muted">14 hari</span></h2><div id="bars"></div></div>
     </div>
-    <div class="panel"><h2>Per stage</h2><div class="stages" id="stageCards"></div></div>
+    <div class="panel"><h2>Penanganan Cibitung per Hari <span class="muted">14 hari</span></h2><div id="area"></div></div>
     <div class="panel">
-      <h2>🚨 Perlu perhatian <span id="openListCount" class="pill"></span></h2>
+      <div class="panelhead"><h2>🚨 Perlu perhatian <span id="openListCount" class="pill"></span></h2></div>
       <div class="tblwrap"><table class="tbl"><thead><tr>
         <th>No Tiket</th><th>Judul</th><th>Stage</th><th>Team</th><th>Teknisi</th><th>Waktu</th><th>Update</th>
       </tr></thead><tbody id="openList"></tbody></table></div>
@@ -92,7 +93,8 @@
 </main>
 
 <div id="toasts"></div>
-<div id="drawer" class="drawer hidden">  <div class="sheet">
+<div id="drawer" class="drawer hidden">
+  <div class="sheet">
     <button id="drawerClose" class="x">✕ Tutup</button>
     <div id="detail"></div>
   </div>

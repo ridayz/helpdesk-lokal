@@ -77,15 +77,8 @@ async function api(path, tries = 3) {
 
 async function loadMeta() {
   meta = await api('/api/meta');
-  $('openCount').textContent = meta.openCount ?? '–';
+  window._meta = meta;
   $('navOpen').textContent = meta.openCount ?? '';
-  $('totalCount').textContent = meta.total ?? '–';
-  $('stageCards').innerHTML = (meta.byStage || []).map((g) =>
-    `<span class="stage"><b>${g.__count}</b> ${esc(g.stage_id?.[1] || '?')}</span>`).join('');
-  const closed = (meta.byStage || []).find((g) => g.stage_id?.[1] === 'Closed')?.__count || 0;
-  const pct = meta.total ? Math.round((closed / meta.total) * 100) : 0;
-  $('solveBar').style.width = pct + '%';
-  $('solvePct').textContent = pct + '% selesai (' + closed + '/' + (meta.total ?? '?') + ')';
   const fill = (el, items, label) => {
     const cur = $(el).value;
     $(el).innerHTML = `<option value="">${label}</option>` + items.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
@@ -94,6 +87,65 @@ async function loadMeta() {
   fill('fStage', meta.stages || [], 'Semua stage');
   fill('fTeam', meta.teams || [], 'Semua team');
   fill('fChannel', meta.channels || [], 'Semua channel');
+  renderStats();
+}
+
+function renderStats() {
+  const m = window._meta, k = window._kpi, s = window._stats;
+  if (!m) return;
+  const closed = (m.byStage || []).find((g) => g.stage_id?.[1] === 'Closed')?.__count || 0;
+  const pct = m.total ? Math.round((closed / m.total) * 100) : 0;
+  const new7 = s ? s.byDay.slice(-7).reduce((a, d) => a + d.total, 0) : null;
+  $('statCards').innerHTML = `
+    <div class="stat"><span class="ic pink">🎫</span><div><div class="lb">Tiket terbuka</div>
+      <div><span class="vl">${m.openCount ?? '–'}</span><span class="delta flat">● live</span></div></div></div>
+    <div class="stat"><span class="ic cyan">🗂️</span><div><div class="lb">Total tiket</div>
+      <div><span class="vl">${m.total ?? '–'}</span>${new7 === null ? '' : `<span class="delta ${new7 ? 'up' : 'flat'}">+${new7}/7hr</span>`}</div></div></div>
+    <div class="stat"><span class="ic green">📈</span><div><div class="lb">Progress selesai</div>
+      <div><span class="vl">${pct}%</span><span class="delta ${pct >= 90 ? 'up' : 'flat'}">${closed}/${m.total ?? '?'}</span></div></div></div>
+    <div class="stat"><span class="ic amber">🛠️</span><div><div class="lb">Penanganan Cibitung</div>
+      <div><span class="vl">${k ? k.total : '–'}</span>${k ? `<span class="delta flat">⌀ ${fmtDur(k.avgMenit)}</span>` : ''}</div></div></div>`;
+  // gauge selesai
+  const R = 70, C = 2 * Math.PI * R, frac = pct / 100;
+  $('gauge').innerHTML = `
+    <svg viewBox="0 0 200 120"><circle cx="100" cy="105" r="${R}" fill="none" stroke="#232c5e" stroke-width="16"/>
+    <circle cx="100" cy="105" r="${R}" fill="none" stroke="url(#gg)" stroke-width="16" stroke-linecap="round"
+      stroke-dasharray="${(C * frac * 0.52).toFixed(1)} ${C.toFixed(1)}" transform="rotate(207 100 105)"/>
+    <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#e349c5"/></linearGradient></defs>
+    <text x="100" y="95" text-anchor="middle" fill="#fff" font-size="26" font-weight="800">${pct}%</text></svg>`;
+  $('gaugeLegend').innerHTML =
+    `<span><i style="background:#e349c5"></i>Selesai ${closed}</span>
+     <span><i style="background:#232c5e"></i>Terbuka ${m.openCount ?? 0}</span>`;
+  if (s) {
+    // bar tiket/hari
+    const max = Math.max(1, ...s.byDay.map((d) => d.total));
+    const W = 560, H = 150, bw = W / s.byDay.length;
+    $('bars').innerHTML = `<svg viewBox="0 0 ${W} ${H + 22}">` + s.byDay.map((d, i) => {
+      const h = Math.max(3, (d.total / max) * H);
+      const x = (i * bw + 2).toFixed(1);
+      return `<rect x="${x}" y="${(H - h).toFixed(1)}" width="${(bw - 5).toFixed(1)}" height="${h.toFixed(1)}" rx="4"
+        fill="url(#bg)" opacity="${d.total ? 1 : 0.25}"><title>${d.date}: ${d.total} tiket (${d.open} terbuka)</title></rect>` +
+        (i % 2 ? '' : `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H + 16}" text-anchor="middle" fill="#8f97c4" font-size="11">${d.date.slice(5)}</text>`);
+    }).join('') + `<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e349c5"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg>`;
+    // area penanganan/hari
+    const mx = Math.max(1, ...s.l2ByDay.map((d) => d.total));
+    const pts = s.l2ByDay.map((d, i) => [(i / (s.l2ByDay.length - 1 || 1)) * W, H - Math.max(2, (d.total / mx) * (H - 10))]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    $('area').innerHTML = `<svg viewBox="0 0 ${W} ${H + 22}">
+      <polygon points="0,${H} ${pts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')} ${W},${H}" fill="rgba(34,211,238,.15)"/>
+      <path d="${line}" fill="none" stroke="#22d3ee" stroke-width="2.5"/>
+      ${pts.filter((_, i) => i % 2 === 0).map((p, k) => `<text x="${p[0].toFixed(1)}" y="${H + 16}" text-anchor="middle" fill="#8f97c4" font-size="11">${s.l2ByDay[k * 2].date.slice(5)}</text>`).join('')}</svg>`;
+  }
+}
+
+async function loadStats() {
+  try {
+    const teamId = $('fTeam').value || '17';
+    window._stats = await api('/api/stats?days=14&team=' + teamId);
+  } catch { window._stats = null; }
+  renderStats();
 }
 
 async function loadTickets() {
@@ -132,7 +184,8 @@ async function loadKpi() {
   $('kpiTeam').textContent = teamName;
   try {
     const k = await api('/api/kpi-l2?team=' + teamId);
-    $('l2Count').textContent = k.total ?? '–';
+    window._kpi = k;
+    renderStats();
     $('kpiCards').innerHTML = `
       <div class="card"><div class="num" style="font-size:30px">${fmtDur(k.avgMenit)}</div><div class="lbl">Rata-rata penanganan (ambil→selesai)</div></div>
       <div class="card"><div class="num">${k.selesai}/${k.total}</div><div class="lbl">Penanganan selesai</div></div>
@@ -392,7 +445,7 @@ async function refreshAll(manual) {
   try {
     if (manual) await api('/api/refresh');
     await loadMeta();
-    await Promise.all([loadOpen(), loadTickets(), loadKpi()]);
+    await Promise.all([loadOpen(), loadTickets(), loadKpi(), loadStats()]);
     if ($('fTeam').value || $('fStage').value || $('fChannel').value || $('fQ').value.trim()) {
       try { checkNotif((await api('/api/tickets?scope=latest')).tickets); } catch { /* abaikan */ }
     }
@@ -445,6 +498,11 @@ let qT = null;
 $('fQ').oninput = () => { clearTimeout(qT); qT = setTimeout(loadTickets, 300); };
 let l2T = null;
 $('fL2Q').oninput = () => { clearTimeout(l2T); l2T = setTimeout(loadL2Recent, 300); };
+$('sideQ').oninput = () => {
+  document.querySelector('.nav[data-page="tiket"]').click();
+  $('fQ').value = $('sideQ').value;
+  loadTickets();
+};
 
 (async () => {
   paintNotifBtn();

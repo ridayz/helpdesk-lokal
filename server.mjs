@@ -172,6 +172,37 @@ const server = createServer(async (req, res) => {
       const acts = await kw('ticket.action', 'search_read', [[], ['id', 'name']], { order: 'name' });
       return send(res, 200, JSON.stringify({ actions: acts }));
     }
+    if (p === '/api/stats') {
+      // Analitik: tiket per hari (14 hari) + penanganan L2 per hari.
+      const days = Math.min(parseInt(u.searchParams.get('days') || '14', 10) || 14, 60);
+      const team = u.searchParams.get('team');
+      const keys = [];
+      const today = new Date();
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        keys.push(d.toISOString().slice(0, 10));
+      }
+      const tickets = await kw('helpdesk.ticket', 'search_read', [[], ['id', 'create_date', 'stage_id']], { limit: 5000 });
+      const byDay = keys.map((k) => ({ date: k, total: 0, open: 0 }));
+      const idx = Object.fromEntries(keys.map((k, i) => [k, i]));
+      for (const t of tickets) {
+        const k = String(t.create_date || '').slice(0, 10);
+        if (k in idx) {
+          byDay[idx[k]].total++;
+          const st = t.stage_id?.[1] || '';
+          if (!['Closed', 'Solved', 'Cancelled'].includes(st)) byDay[idx[k]].open++;
+        }
+      }
+      const l2dom = team ? [['team_id', '=', parseInt(team, 10)]] : [];
+      const logs = await kw('helpdesk.ticket.l2', 'search_read', [l2dom, ['id', 'create_date', 'end_time']], { order: 'create_date desc', limit: 3000 });
+      const l2ByDay = keys.map((k) => ({ date: k, total: 0, done: 0 }));
+      for (const l of logs) {
+        const k = String(l.create_date || '').slice(0, 10);
+        if (k in idx) { l2ByDay[idx[k]].total++; if (l.end_time) l2ByDay[idx[k]].done++; }
+      }
+      return send(res, 200, JSON.stringify({ byDay, l2ByDay, l2Sampled: logs.length }));
+    }
     const mAct = p.match(/^\/api\/tickets\/(\d+)\/action$/);
     if (mAct && req.method === 'POST') {
       // AKSI TULIS ke Odoo — hanya jalan kalau user pencet tombol + konfirmasi di UI.
