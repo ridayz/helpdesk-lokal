@@ -117,7 +117,7 @@ async function refreshCache() {
     kw('helpdesk.ticket', 'search_count', [[],]),
     kw('helpdesk.ticket', 'search_count', [[['stage_id.name', 'not in', ['Closed', 'Solved', 'Cancelled']]]]),
     kw('helpdesk.ticket', 'read_group', [[], ['stage_id']], { groupby: ['stage_id'], lazy: false }),
-    kw('helpdesk.ticket', 'search_read', [[['stage_id.name', 'not in', ['Closed', 'Solved', 'Cancelled']]], TICKET_LIST_FIELDS], { order: 'write_date desc', limit: 50 }),
+    kw('helpdesk.ticket', 'search_read', [[['stage_id.name', 'not in', ['Closed', 'Solved', 'Cancelled']]], TICKET_LIST_FIELDS], { order: 'write_date desc', limit: 2000 }),
     kw('helpdesk.ticket', 'search_read', [[], TICKET_LIST_FIELDS], { order: 'write_date desc', limit: 30 }),
   ]);
   cache = { at: Date.now(), meta: { stages, teams, channels, total, openCount, byStage }, latest, open };
