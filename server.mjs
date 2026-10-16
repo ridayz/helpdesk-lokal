@@ -155,6 +155,40 @@ const server = createServer(async (req, res) => {
       if (q) list = list.filter((t) => `${t.number} ${t.name} ${t.customer_id || ''} ${t.ca_name || ''}`.toLowerCase().includes(q));
       return send(res, 200, JSON.stringify({ tickets: list, cachedAt: c.at }));
     }
+    // Tiket yang TIDAK bisa dibaca akun ini tapi pernah disinggung log L2
+    // (gangguan/IWO tim lain): tampil display-only + tanda luar akses.
+    if (p === '/api/tickets-extra') {
+      const q = (u.searchParams.get('q') || '').trim().toLowerCase();
+      const team = u.searchParams.get('team');
+      const recent = await recentL2();
+      const seen = new Map();
+      for (const r of recent) {
+        const tid = r.ticket_id?.[0];
+        if (!tid) continue;
+        const cd = r.create_date || '';
+        const cur = seen.get(tid);
+        if (!cur || cd > cur.last) {
+          seen.set(tid, {
+            id: tid, disp: r.ticket_id?.[1] || ('#' + tid),
+            team: r.team_id?.[1] || '-', teamId: r.team_id?.[0] || null,
+            by: r.user_id?.[1] || '-', last: cd,
+          });
+        }
+      }
+      const readable = new Set(await ticketIdsByNumber(''));
+      let extra = [...seen.values()].filter((t) => !readable.has(t.id));
+      if (team) extra = extra.filter((t) => String(t.teamId) === team);
+      if (q) extra = extra.filter((t) => t.disp.toLowerCase().includes(q));
+      extra.sort((a, b) => (a.last < b.last ? 1 : -1));
+      const tickets = extra.slice(0, 500).map((t) => {
+        const i = t.disp.indexOf(' - ');
+        return {
+          id: t.id, number: i >= 0 ? t.disp.slice(0, i) : t.disp,
+          name: i >= 0 ? t.disp.slice(i + 3) : '', team: t.team, by: t.by, last: t.last,
+        };
+      });
+      return send(res, 200, JSON.stringify({ tickets, total: extra.length, live: true }));
+    }
     if (p === '/api/search') {
       const q = (u.searchParams.get('q') || '').trim();
       const team = u.searchParams.get('team');

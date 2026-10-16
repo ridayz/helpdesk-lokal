@@ -67,6 +67,18 @@ function trHtml(t, withCust) {
     <td>${waktuChip(t)}</td>
     <td>${esc(t.write_date || '')}</td></tr>`;
 }
+// baris tiket luar akses (display-only dari log L2, tidak bisa dibuka)
+function trExtraHtml(x) {
+  return `<tr title="Di luar akses baca akun ini — data dari log penanganan, detail tidak bisa dibuka">`
+    + `<td class="t">${esc(x.number || '')} <span class="pill cbt">🔒 luar akses</span></td>`
+    + `<td>${esc(x.name || '')}</td>`
+    + `<td><span class="muted">tidak diketahui</span></td>`
+    + `<td>${esc(x.team || '-')}</td>`
+    + `<td>${esc(x.by || '-')}</td>`
+    + `<td>-</td>`
+    + `<td>${esc(x.last || '')}</td>`
+    + `<td>${esc(x.last || '')}</td></tr>`;
+}
 function bindRows(tbody) {
   tbody.querySelectorAll('tr[data-id]').forEach((tr) => {
     tr.onclick = () => openDetail(parseInt(tr.dataset.id, 10));
@@ -161,14 +173,31 @@ async function loadTickets() {
     box.innerHTML = '<tr><td colspan="8"><div class="skel">mencari…</div></td></tr>';
     const q = new URLSearchParams({ stage: $('fStage').value, team: $('fTeam').value, channel: $('fChannel').value, q: $('fQ').value.trim() });
     const j = await api('/api/search?' + q);
-    box.innerHTML = j.tickets.length ? '' : '<tr><td colspan="8" class="muted">Tidak ada tiket cocok di seluruh database.</td></tr>';
-    box.innerHTML = j.tickets.map((t) => trHtml(t, true)).join('') || box.innerHTML;
+    let html = j.tickets.map((t) => trHtml(t, true)).join('');
+    // tiket luar akses ikut dimunculkan kalau filternya memungkinkan (teks/team saja)
+    if (!$('fStage').value && !$('fChannel').value) {
+      try {
+        const xq = await api('/api/tickets-extra?' + new URLSearchParams({ q: $('fQ').value.trim(), team: $('fTeam').value }));
+        if ((xq.tickets || []).length) {
+          html += `<tr><td colspan="8" class="muted">— ${xq.total} cocok di luar akses akun (dari log penanganan) —</td></tr>`
+            + xq.tickets.map(trExtraHtml).join('');
+        }
+      } catch { /* abaikan */ }
+    }
+    box.innerHTML = html || '<tr><td colspan="8" class="muted">Tidak ada tiket cocok di seluruh database.</td></tr>';
     bindRows(box);
     return;
   }
   const j = await api('/api/tickets?scope=latest');
-  box.innerHTML = j.tickets.length ? '' : '<tr><td colspan="8" class="muted">Tidak ada tiket.</td></tr>';
-  box.innerHTML = j.tickets.map((t) => trHtml(t, true)).join('') || box.innerHTML;
+  let html = j.tickets.map((t) => trHtml(t, true)).join('');
+  try {
+    const x = await api('/api/tickets-extra');
+    if ((x.tickets || []).length) {
+      html += `<tr><td colspan="8" class="muted">— ${x.total} tiket lain di luar akses akun (dari log penanganan) —</td></tr>`
+        + x.tickets.map(trExtraHtml).join('');
+    }
+  } catch { /* abaikan */ }
+  box.innerHTML = html || '<tr><td colspan="8" class="muted">Tidak ada tiket.</td></tr>';
   bindRows(box);
   checkNotif(j.tickets);
 }
@@ -598,14 +627,14 @@ $('btnNotif').onclick = async () => {
   }
 };
 for (const id of ['fStage', 'fTeam', 'fChannel']) $(id).onchange = () => {
-  localStorage.setItem('hdl_team', $('fTeam').value);
+  localStorage.setItem('hdl_team_v2', $('fTeam').value);
   loadTickets();
   loadKpi();
 };
 $('btnCibitung').onclick = () => {
   $('fStage').value = ''; $('fChannel').value = ''; $('fQ').value = '';
   $('fTeam').value = '17';
-  localStorage.setItem('hdl_team', '17');
+  localStorage.setItem('hdl_team_v2', '17');
   loadTickets();
   loadKpi();
   document.querySelector('#page-tiket .tblwrap').scrollIntoView({ behavior: 'smooth' });
@@ -631,12 +660,12 @@ $('fToday').onclick = () => { const d = iso(new Date()); setRange(d, d); loadL2R
 $('f7d').onclick = () => { const t = new Date(), f = new Date(); f.setDate(t.getDate() - 6); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
 $('f30d').onclick = () => { const t = new Date(), f = new Date(); f.setDate(t.getDate() - 29); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
 if ($('fYtd')) $('fYtd').onclick = () => { const t = new Date(), f = new Date(t.getFullYear(), 0, 1); setRange(iso(f), iso(t)); loadL2Recent(); loadKpi(); };
-  const savedTeam = localStorage.getItem('hdl_team') || '17';
+  const savedTeam = localStorage.getItem('hdl_team_v2') || '';
   $('openList').innerHTML = '<tr><td colspan="7"><div class="skel">memuat…</div></td></tr>';
   $('ticketList').innerHTML = '<tr><td colspan="8"><div class="skel">memuat…</div></td></tr>';
   await refreshAll(false);
   $('fTeam').value = savedTeam;
-  localStorage.setItem('hdl_team', savedTeam);
+  localStorage.setItem('hdl_team_v2', savedTeam);
   await loadL2Recent();
   await loadKpi();
   pollTimer = setInterval(() => refreshAll(false), 60000);
