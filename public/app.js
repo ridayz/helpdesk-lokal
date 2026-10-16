@@ -53,10 +53,12 @@ function waktuChip(t) {
   return '🆕 nunggu diambil';
 }
 // baris tabel tiket (withCust: tampilkan kolom customer di halaman Tiket)
+// tiket tim Cibitung (id 17) dikasih tanda 🛠️ + garis pink kiri biar gampang dikenali
 function trHtml(t, withCust) {
   const stage = t.stage_id?.[1] || '-';
-  return `<tr data-id="${t.id}">
-    <td class="t">${esc(t.number || '')}</td>
+  const isCbt = t.team_id?.[0] === 17;
+  return `<tr data-id="${t.id}"${isCbt ? ' class="cibitung"' : ''}>
+    <td class="t">${esc(t.number || '')}${isCbt ? '<span class="pill cbt">🛠️ Cibitung</span>' : ''}</td>
     <td>${esc(t.name || '')}</td>
     <td><span class="${badgeClass(stage)}">${esc(stage)}</span></td>
     <td>${esc(t.team_id?.[1] || '-')}</td>

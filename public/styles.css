@@ -112,6 +112,8 @@ button:hover { border-color: var(--pink); }
 .stage { background: var(--panel2); border-radius: 10px; padding: 6px 14px; }
 .stage b { font-size: 19px; color: #fff; }
 .pill { background: var(--pink); color: #fff; border-radius: 999px; padding: 2px 12px; font-size: 12px; font-weight: 700; }
+.pill.cbt { background: rgba(232,73,197,.18); color: #f0a6e0; border: 1px solid rgba(232,73,197,.5); font-size: 11px; padding: 1px 8px; margin-left: 6px; white-space: nowrap; }
+tr.cibitung td:first-child { border-left: 3px solid var(--pink); }
 /* --- tabel --- */
 .tblwrap { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
