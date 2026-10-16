@@ -68,9 +68,11 @@ function trHtml(t, withCust) {
     <td>${esc(t.write_date || '')}</td></tr>`;
 }
 // baris tiket luar akses (display-only dari log L2, tidak bisa dibuka)
+// tiket tim Cibitung (id 17) ikut dikasih tanda 🛠️ sama kayak tiket readable
 function trExtraHtml(x) {
-  return `<tr title="Di luar akses baca akun ini — data dari log penanganan, detail tidak bisa dibuka">`
-    + `<td class="t">${esc(x.number || '')} <span class="pill cbt">🔒 luar akses</span></td>`
+  const isCbt = x.teamId === 17;
+  return `<tr${isCbt ? ' class="cibitung"' : ''} title="Di luar akses baca akun ini — data dari log penanganan, detail tidak bisa dibuka">`
+    + `<td class="t">${esc(x.number || '')} <span class="pill cbt">${isCbt ? '🛠️ Cibitung 🔒' : '🔒 luar akses'}</span></td>`
     + `<td>${esc(x.name || '')}</td>`
     + `<td><span class="muted">tidak diketahui</span></td>`
     + `<td>${esc(x.team || '-')}</td>`

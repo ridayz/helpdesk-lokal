@@ -184,7 +184,7 @@ const server = createServer(async (req, res) => {
         const i = t.disp.indexOf(' - ');
         return {
           id: t.id, number: i >= 0 ? t.disp.slice(0, i) : t.disp,
-          name: i >= 0 ? t.disp.slice(i + 3) : '', team: t.team, by: t.by, last: t.last,
+          name: i >= 0 ? t.disp.slice(i + 3) : '', team: t.team, teamId: t.teamId, by: t.by, last: t.last,
         };
       });
       return send(res, 200, JSON.stringify({ tickets, total: extra.length, live: true }));
